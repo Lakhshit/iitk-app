@@ -1,5 +1,102 @@
 import { useState, useEffect, useRef } from "react";
 
+const APP_PASSWORD = "IITK2024";
+
+function PasswordGate({ onUnlock }) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const tryUnlock = () => {
+    if (input.trim().toUpperCase() === APP_PASSWORD) {
+      onUnlock();
+    } else {
+      setError(true);
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#0a0f1e",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontFamily: "sans-serif",
+    }}>
+      <div style={{
+        background: "linear-gradient(135deg, #0d1a35, #111d38)",
+        border: "1px solid #1e2f55",
+        borderRadius: 20,
+        padding: "48px 40px",
+        width: "100%",
+        maxWidth: 380,
+        textAlign: "center",
+        animation: shake ? "shake 0.4s" : "none",
+      }}>
+        <style>{`
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+          }
+        `}</style>
+        <div style={{
+          width: 64, height: 64,
+          background: "linear-gradient(135deg, #c9a84c, #f0d080)",
+          borderRadius: "50%",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 24, fontWeight: 900, color: "#0a0f1e",
+          margin: "0 auto 20px",
+          boxShadow: "0 0 30px rgba(201,168,76,0.3)",
+        }}>IIT</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "#c9a84c", letterSpacing: 3, marginBottom: 6 }}>IITK</div>
+        <div style={{ fontSize: 12, color: "#667788", letterSpacing: 2, textTransform: "uppercase", marginBottom: 32 }}>Session Hub</div>
+        <div style={{ fontSize: 14, color: "#8899bb", marginBottom: 20 }}>Enter session password to continue</div>
+        <input
+          type="password"
+          value={input}
+          onChange={e => { setInput(e.target.value); setError(false); }}
+          onKeyDown={e => e.key === "Enter" && tryUnlock()}
+          placeholder="Password"
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            background: "#0a0f1e",
+            border: `1px solid ${error ? "#e0784a" : "#1e2f55"}`,
+            borderRadius: 10,
+            color: "#e8dcc8",
+            fontSize: 16,
+            outline: "none",
+            boxSizing: "border-box",
+            marginBottom: 12,
+            letterSpacing: 3,
+            textAlign: "center",
+          }}
+          autoFocus
+        />
+        {error && <div style={{ color: "#e0784a", fontSize: 12, marginBottom: 12 }}>Incorrect password. Try again.</div>}
+        <button onClick={tryUnlock} style={{
+          width: "100%",
+          padding: "12px",
+          background: "linear-gradient(135deg, #8a6a20, #c9a84c)",
+          border: "none",
+          borderRadius: 10,
+          color: "#0a0f1e",
+          fontWeight: 700,
+          fontSize: 14,
+          cursor: "pointer",
+          letterSpacing: 1,
+        }}>Enter Session →</button>
+      </div>
+    </div>
+  );
+}
+
 const MEMBERS = Array.from({ length: 40 }, (_, i) => ({
   id: i + 1,
   name: `Participant ${i + 1}`,
@@ -33,8 +130,11 @@ const EMOJI_RATINGS = ["😐", "🙂", "😊", "😁", "🤩"];
 const TABS = ["Dashboard", "Attendance", "Learning", "Feedback", "Poll", "Insights"];
 
 export default function App() {
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("iitk_unlocked") === "yes");
   const [data, setData] = useState(loadData);
   const [tab, setTab] = useState("Dashboard");
+
+  if (!unlocked) return <PasswordGate onUnlock={() => { sessionStorage.setItem("iitk_unlocked", "yes"); setUnlocked(true); }} />;
   const [feedbackForm, setFeedbackForm] = useState({ name: "", rating: 3, comment: "", topic: "" });
   const [submitted, setSubmitted] = useState(false);
   const [pollVoted, setPollVoted] = useState(false);
