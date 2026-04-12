@@ -2,83 +2,111 @@ import { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, set, push, update, remove } from "firebase/database";
 
-// ─────────────────────────────────────────────────────────────
-// ⚠️  STEP 1: PASTE YOUR FIREBASE CONFIG HERE
-// ─────────────────────────────────────────────────────────────
+// ─── PASTE YOUR FIREBASE CONFIG HERE ────────────────────────
 const firebaseConfig = {
-  apiKey: "AIzaSyCKsUJyfa6ktApJgAaZvpqj0RtTxVbY6N0",
-  authDomain: "iitk-session.firebaseapp.com",
-  databaseURL: "https://iitk-session-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "iitk-session",
-  storageBucket: "iitk-session.firebasestorage.app",
-  messagingSenderId: "451756569425",
-  appId: "1:451756569425:web:c327b5f4b973b79b0c9970",
+  apiKey: "AIzaSyD8flQKhye0ux5W-rw7LIjHdZt3ZkoroHg",
+  authDomain: "oci-team-hub.firebaseapp.com",
+  databaseURL: "https://oci-team-hub-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "oci-team-hub",
+  storageBucket: "oci-team-hub.firebasestorage.app",
+  messagingSenderId: "444346127805",
+  appId: "1:444346127805:web:1f7ef3208c968a1b812ed4",
 };
-// ─────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-const INSTRUCTOR_PASS = "ADMIN2024";
-const MEMBERS = Array.from({ length: 40 }, (_, i) => `Participant ${i + 1}`);
-const REACTIONS = [["👍","Got it!"],["❓","Question"],["🔥","Love it!"],["😕","Confused"],["✋","Raise Hand"],["⏸","Need Break"]];
-const STARS = ["😐","🙂","😊","😁","🤩"];
-const NOTE_COLORS = ["#ff3cac","#4d9fff","#00e5cc","#ff8c00","#9b59f5","#2ecc71"];
-
+// ── Theme ────────────────────────────────────────────────────
 const C = {
-  bg:"#080810", card:"#0f0f1a", card2:"#161625", border:"#252540",
-  pink:"#ff3cac", blue:"#4d9fff", teal:"#00e5cc", orange:"#ff8c00",
-  purple:"#9b59f5", green:"#2ecc71", text:"#eeeeff", muted:"#6060a0",
+  bg: "#070b14", card: "#0d1320", card2: "#111928", border: "#1e2d45",
+  blue: "#2979ff", cyan: "#00bcd4", green: "#00c853", orange: "#ff6d00",
+  red: "#f44336", purple: "#7c4dff", yellow: "#ffd600", teal: "#1de9b6",
+  text: "#e8eaf6", muted: "#546e7a", dim: "#37474f",
 };
 const G = {
-  pink:"linear-gradient(135deg,#ff3cac,#9b59f5)",
-  blue:"linear-gradient(135deg,#4d9fff,#00e5cc)",
-  orange:"linear-gradient(135deg,#ff8c00,#ff3cac)",
-  green:"linear-gradient(135deg,#2ecc71,#4d9fff)",
-  purple:"linear-gradient(135deg,#9b59f5,#4d9fff)",
+  blue: "linear-gradient(135deg,#2979ff,#00bcd4)",
+  green: "linear-gradient(135deg,#00c853,#1de9b6)",
+  orange: "linear-gradient(135deg,#ff6d00,#ffd600)",
+  red: "linear-gradient(135deg,#f44336,#ff6d00)",
+  purple: "linear-gradient(135deg,#7c4dff,#2979ff)",
+  dark: "linear-gradient(135deg,#1e2d45,#0d1320)",
 };
 
-// ── Helpers ───────────────────────────────────────────────────
-const Btn = ({ children, grad, onClick, style = {}, disabled }) => (
-  <button onClick={onClick} disabled={disabled} style={{ padding:"11px 22px", background: grad || C.card, border: grad ? "none" : `1px solid ${C.border}`, borderRadius:12, color: grad ? "#fff" : C.muted, fontWeight:700, fontSize:13, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition:"all 0.15s", ...style }}>{children}</button>
+const ROLES = { leadership: "Leadership", pm: "Project Manager", dev: "Developer/Engineer" };
+const USERS = [
+  { id: "u1", name: "Rajesh Kumar", role: "leadership", avatar: "RK" },
+  { id: "u2", name: "Priya Sharma", role: "leadership", avatar: "PS" },
+  { id: "u3", name: "Amit Verma", role: "pm", avatar: "AV" },
+  { id: "u4", name: "Sneha Patel", role: "pm", avatar: "SP" },
+  { id: "u5", name: "Rohan Singh", role: "pm", avatar: "RS" },
+  { id: "u6", name: "Divya Nair", role: "dev", avatar: "DN" },
+  { id: "u7", name: "Karan Mehta", role: "dev", avatar: "KM" },
+  { id: "u8", name: "Anjali Rao", role: "dev", avatar: "AR" },
+  { id: "u9", name: "Vikram Joshi", role: "dev", avatar: "VJ" },
+  { id: "u10", name: "Neha Gupta", role: "dev", avatar: "NG" },
+  { id: "u11", name: "Suresh Iyer", role: "dev", avatar: "SI" },
+  { id: "u12", name: "Pooja Agarwal", role: "dev", avatar: "PA" },
+];
+
+const PRIORITY_COLORS = { Critical: C.red, High: C.orange, Medium: C.yellow, Low: C.green };
+const STATUS_COLORS = {
+  Active: C.blue, "In Progress": C.cyan, Completed: C.green, "On Hold": C.yellow,
+  Open: C.red, Resolved: C.green, Closed: C.muted, Planning: C.purple,
+  "To Do": C.muted, Done: C.green, Blocked: C.red,
+};
+
+// ── Reusable Components ───────────────────────────────────────
+const Badge = ({ text, color }) => (
+  <span style={{ padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: `${color}22`, color, border: `1px solid ${color}44`, whiteSpace: "nowrap" }}>{text}</span>
+);
+
+const Avatar = ({ initials, size = 32, grad = G.blue }) => (
+  <div style={{ width: size, height: size, borderRadius: "50%", background: grad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.32, fontWeight: 700, color: "#fff", flexShrink: 0, fontFamily: "'Syne',sans-serif" }}>{initials}</div>
+);
+
+const Card = ({ children, style = {}, grad, onClick }) => (
+  <div onClick={onClick} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, position: "relative", overflow: "hidden", cursor: onClick ? "pointer" : "default", transition: "border-color 0.2s", ...style }}
+    onMouseEnter={e => onClick && (e.currentTarget.style.borderColor = C.blue)}
+    onMouseLeave={e => onClick && (e.currentTarget.style.borderColor = C.border)}>
+    {grad && <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: grad }} />}
+    {children}
+  </div>
+);
+
+const Btn = ({ children, grad, onClick, style = {}, sm, danger }) => (
+  <button onClick={onClick} style={{ padding: sm ? "6px 14px" : "10px 20px", background: danger ? `${C.red}22` : grad || C.card2, border: danger ? `1px solid ${C.red}44` : grad ? "none" : `1px solid ${C.border}`, borderRadius: 10, color: danger ? C.red : grad ? "#fff" : C.muted, fontWeight: 600, fontSize: sm ? 12 : 13, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", ...style }}>{children}</button>
 );
 
 const Input = ({ value, onChange, placeholder, type = "text", rows, style = {} }) => {
-  const base = { width:"100%", padding:"11px 14px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:14, outline:"none", boxSizing:"border-box", fontFamily:"inherit", ...style };
-  return rows
-    ? <textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={{ ...base, resize:"vertical" }} />
-    : <input type={type} value={value} onChange={onChange} placeholder={placeholder} style={base} />;
+  const base = { width: "100%", padding: "10px 13px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box", ...style };
+  return rows ? <textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={{ ...base, resize: "vertical" }} /> : <input type={type} value={value} onChange={onChange} placeholder={placeholder} style={base} />;
 };
 
 const Select = ({ value, onChange, children, style = {} }) => (
-  <select value={value} onChange={onChange} style={{ width:"100%", padding:"11px 14px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:10, color:C.text, fontSize:14, outline:"none", boxSizing:"border-box", fontFamily:"inherit", ...style }}>
-    {children}
-  </select>
-);
-
-const Card = ({ children, style = {}, grad }) => (
-  <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:24, position:"relative", overflow:"hidden", ...style }}>
-    {grad && <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:grad }} />}
-    {children}
-  </div>
+  <select value={value} onChange={onChange} style={{ width: "100%", padding: "10px 13px", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box", ...style }}>{children}</select>
 );
 
 const SectionTitle = ({ text, sub, grad }) => (
-  <div style={{ marginBottom:24 }}>
-    <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:26, fontWeight:800, background: grad || G.pink, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", margin:"0 0 4px" }}>{text}</h2>
-    {sub && <p style={{ color:C.muted, fontSize:13, margin:0 }}>{sub}</p>}
+  <div style={{ marginBottom: 24 }}>
+    <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 24, fontWeight: 800, background: grad || G.blue, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: "0 0 4px" }}>{text}</h2>
+    {sub && <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>{sub}</p>}
   </div>
 );
 
-const StatCard = ({ label, value, icon, grad }) => (
-  <Card grad={grad} style={{ textAlign:"center" }}>
-    <div style={{ fontSize:28, marginBottom:6 }}>{icon}</div>
-    <div style={{ fontFamily:"'Syne',sans-serif", fontSize:28, fontWeight:800, background:grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>{value}</div>
-    <div style={{ color:C.muted, fontSize:11, letterSpacing:1, textTransform:"uppercase", marginTop:4 }}>{label}</div>
+const StatCard = ({ label, value, icon, grad, sub }) => (
+  <Card grad={grad}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div>
+        <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 32, fontWeight: 800, background: grad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>{value}</div>
+        <div style={{ color: C.muted, fontSize: 12, letterSpacing: 0.5, marginTop: 6, textTransform: "uppercase" }}>{label}</div>
+        {sub && <div style={{ color: C.teal, fontSize: 11, marginTop: 4 }}>{sub}</div>}
+      </div>
+      <div style={{ fontSize: 28, opacity: 0.6 }}>{icon}</div>
+    </div>
   </Card>
 );
 
-// ── useDB hook: subscribe to a Firebase path ──────────────────
 function useDB(path) {
   const [data, setData] = useState(null);
   useEffect(() => {
@@ -89,813 +117,804 @@ function useDB(path) {
   return data;
 }
 
-// ─────────────────────────────────────────────────────────────
-// LOGIN SCREEN
-// ─────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }) {
-  const [role, setRole] = useState(null); // "participant" | "instructor"
-  const [name, setName] = useState("");
+const now = () => new Date().toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+
+// ── LOGIN ────────────────────────────────────────────────────
+function Login({ onLogin }) {
+  const [selected, setSelected] = useState(null);
   const [pass, setPass] = useState("");
   const [err, setErr] = useState("");
 
-  const tryLogin = () => {
-    if (role === "participant") {
-      if (!name) return setErr("Please select your name.");
-      onLogin({ role: "participant", name });
-    } else {
-      if (pass !== INSTRUCTOR_PASS) return setErr("Wrong password.");
-      onLogin({ role: "instructor", name: "Instructor" });
-    }
+  const login = () => {
+    if (!selected) return setErr("Select a user.");
+    if (selected.role === "leadership" && pass !== "OCI@LEAD") return setErr("Wrong password for Leadership.");
+    if (selected.role === "pm" && pass !== "OCI@PM") return setErr("Wrong password for PM.");
+    onLogin(selected);
   };
 
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif", position:"relative", overflow:"hidden" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap'); *{box-sizing:border-box}`}</style>
-      {[["#ff3cac","8%","15%"],["#4d9fff","75%","65%"],["#9b59f5","45%","85%"]].map(([c,l,t],i)=>(
-        <div key={i} style={{position:"absolute",left:l,top:t,width:"280px",height:"280px",background:c,borderRadius:"50%",filter:"blur(90px)",opacity:0.12,pointerEvents:"none"}}/>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans',sans-serif", position: "relative", overflow: "hidden" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap');*{box-sizing:border-box}`}</style>
+      {[["#2979ff","5%","10%"],["#7c4dff","80%","70%"],["#00bcd4","50%","90%"]].map(([c,l,t],i)=>(
+        <div key={i} style={{ position:"absolute",left:l,top:t,width:"300px",height:"300px",background:c,borderRadius:"50%",filter:"blur(100px)",opacity:0.08,pointerEvents:"none" }}/>
       ))}
-      <div style={{ position:"relative", zIndex:10, width:"100%", maxWidth:420, padding:24 }}>
-        <div style={{ textAlign:"center", marginBottom:36 }}>
-          <div style={{ width:64, height:64, background:G.pink, borderRadius:16, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px", fontSize:20, fontWeight:900, color:"#fff", fontFamily:"'Syne',sans-serif", boxShadow:"0 0 40px rgba(255,60,172,0.35)" }}>IIT</div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:30, fontWeight:800, background:G.pink, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>IITK Session Hub</div>
-          <div style={{ color:C.muted, fontSize:12, letterSpacing:2, textTransform:"uppercase", marginTop:4 }}>AI for Leaders · Live Session</div>
+      <div style={{ position: "relative", zIndex: 10, width: "100%", maxWidth: 480, padding: 24 }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginBottom: 16 }}>
+            <div style={{ width: 52, height: 52, background: G.blue, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, boxShadow: "0 0 40px rgba(41,121,255,0.35)" }}>☁️</div>
+            <div>
+              <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, background: G.blue, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>OCI Team Hub</div>
+              <div style={{ color: C.muted, fontSize: 11, letterSpacing: 2, textTransform: "uppercase" }}>Oracle Cloud Infrastructure</div>
+            </div>
+          </div>
         </div>
 
-        {!role ? (
-          <Card>
-            <p style={{ color:C.muted, textAlign:"center", marginBottom:20, fontSize:14 }}>Who are you joining as?</p>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-              <button onClick={() => { setRole("participant"); setErr(""); }} style={{ padding:"20px 12px", background:C.card2, border:`2px solid ${C.blue}`, borderRadius:14, cursor:"pointer", textAlign:"center", color:C.text }}>
-                <div style={{ fontSize:32, marginBottom:8 }}>🎓</div>
-                <div style={{ fontWeight:700, fontSize:14, color:C.blue }}>Participant</div>
-                <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>Join the session</div>
-              </button>
-              <button onClick={() => { setRole("instructor"); setErr(""); }} style={{ padding:"20px 12px", background:C.card2, border:`2px solid ${C.purple}`, borderRadius:14, cursor:"pointer", textAlign:"center", color:C.text }}>
-                <div style={{ fontSize:32, marginBottom:8 }}>🧑‍🏫</div>
-                <div style={{ fontWeight:700, fontSize:14, color:C.purple }}>Instructor</div>
-                <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>Manage session</div>
-              </button>
+        <Card>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ color: C.muted, fontSize: 12, marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>Select your profile</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
+              {USERS.map(u => (
+                <div key={u.id} onClick={() => { setSelected(u); setErr(""); setPass(""); }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 12, cursor: "pointer", border: `1px solid ${selected?.id === u.id ? C.blue : C.border}`, background: selected?.id === u.id ? `${C.blue}15` : C.card2, transition: "all 0.15s" }}>
+                  <Avatar initials={u.avatar} size={36} grad={u.role === "leadership" ? G.purple : u.role === "pm" ? G.blue : G.green} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{u.name}</div>
+                    <div style={{ fontSize: 11, color: C.muted }}>{ROLES[u.role]}</div>
+                  </div>
+                  {selected?.id === u.id && <span style={{ color: C.blue, fontSize: 16 }}>✓</span>}
+                </div>
+              ))}
             </div>
-          </Card>
-        ) : (
-          <Card>
-            <button onClick={() => { setRole(null); setErr(""); }} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:13, marginBottom:16, padding:0 }}>← Back</button>
-            {role === "participant" ? (
-              <>
-                <p style={{ color:C.muted, fontSize:14, marginBottom:12 }}>Select your name to join:</p>
-                <Select value={name} onChange={e => { setName(e.target.value); setErr(""); }} style={{ marginBottom:16 }}>
-                  <option value="">-- Select your name --</option>
-                  {MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
-                </Select>
-              </>
-            ) : (
-              <>
-                <p style={{ color:C.muted, fontSize:14, marginBottom:12 }}>Enter instructor password:</p>
-                <Input value={pass} onChange={e => { setPass(e.target.value); setErr(""); }} placeholder="Password" type="password" style={{ marginBottom:16 }} />
-              </>
-            )}
-            {err && <p style={{ color:C.pink, fontSize:12, marginBottom:12 }}>{err}</p>}
-            <Btn grad={role === "participant" ? G.blue : G.purple} onClick={tryLogin} style={{ width:"100%" }}>
-              {role === "participant" ? "🚀 Join Session" : "🔐 Login as Instructor"}
-            </Btn>
-          </Card>
-        )}
+          </div>
+
+          {selected && selected.role !== "dev" && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ color: C.muted, fontSize: 12, marginBottom: 8, textTransform: "uppercase", letterSpacing: 1 }}>Password</div>
+              <Input value={pass} onChange={e => { setPass(e.target.value); setErr(""); }} placeholder={`Enter ${ROLES[selected.role]} password`} type="password" />
+              <div style={{ color: C.muted, fontSize: 11, marginTop: 6 }}>
+                💡 Leadership: <code style={{ color: C.cyan }}>OCI@LEAD</code> &nbsp; PM: <code style={{ color: C.cyan }}>OCI@PM</code>
+              </div>
+            </div>
+          )}
+
+          {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>⚠️ {err}</div>}
+          <Btn grad={G.blue} onClick={login} style={{ width: "100%" }}>🚀 Enter OCI Hub</Btn>
+        </Card>
       </div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// PARTICIPANT APP
-// ─────────────────────────────────────────────────────────────
-function ParticipantApp({ user, onLogout }) {
-  const [tab, setTab] = useState("feed");
-  const [learningNote, setLearningNote] = useState("");
-  const [learningScore, setLearningScore] = useState(50);
-  const [learningSaved, setLearningSaved] = useState(false);
-  const [fbForm, setFbForm] = useState({ rating: 3, comment: "", topic: "" });
-  const [fbSaved, setFbSaved] = useState(false);
-  const [question, setQuestion] = useState("");
-  const [qSaved, setQSaved] = useState(false);
-  const [myAnswers, setMyAnswers] = useState({});
-
-  const feed = useDB("feed");
-  const reactions = useDB("reactions");
-  const questions = useDB("questions");
-  const notes = useDB("notes");
-  const quizData = useDB("quiz/questions");
-  const myReaction = reactions?.[user.name] || null;
-
-  const saveLearning = () => {
-    set(ref(db, `feed/${user.name.replace(/ /g,"_")}`), {
-      name: user.name, score: learningScore, note: learningNote, time: new Date().toLocaleTimeString("en-IN"),
-    });
-    setLearningSaved(true); setTimeout(() => setLearningSaved(false), 2500);
-  };
-
-  const sendReaction = (r) => {
-    set(ref(db, `reactions/${user.name.replace(/ /g,"_")}`), r === myReaction ? null : r);
-  };
-
-  const submitQuestion = () => {
-    if (!question.trim()) return;
-    push(ref(db, "questions"), { name: user.name, question, answered: false, time: new Date().toLocaleTimeString("en-IN") });
-    setQuestion(""); setQSaved(true); setTimeout(() => setQSaved(false), 2500);
-  };
-
-  const submitFeedback = () => {
-    if (!fbForm.comment.trim()) return;
-    push(ref(db, "feedback"), { name: user.name, ...fbForm, time: new Date().toLocaleTimeString("en-IN") });
-    setFbForm({ rating: 3, comment: "", topic: "" }); setFbSaved(true); setTimeout(() => setFbSaved(false), 2500);
-  };
-
-  const PTABS = [
-    { id:"feed", label:"🌊 Live Feed" },
-    { id:"learn", label:"📚 My Learning" },
-    { id:"react", label:"🙋 My Reaction" },
-    { id:"qa", label:"💬 Q&A" },
-    { id:"quiz", label:"🧠 Quiz" },
-    { id:"notes", label:"📌 Notes" },
-    { id:"feedback", label:"⭐ Feedback" },
-  ];
-
-  const feedEntries = feed ? Object.values(feed) : [];
-  const noteEntries = notes ? Object.values(notes) : [];
-  const questionEntries = questions ? Object.entries(questions).map(([k,v])=>({id:k,...v})) : [];
-  const quizList = quizData ? Object.entries(quizData).map(([k,v])=>({id:k,...v})) : [];
-
-  return (
-    <div style={{ minHeight:"100vh", background:C.bg, fontFamily:"'DM Sans',sans-serif", color:C.text }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap');*{box-sizing:border-box}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}input,textarea,select{font-family:'DM Sans',sans-serif}`}</style>
-      <header style={{ background:C.card, borderBottom:`1px solid ${C.border}`, position:"sticky", top:0, zIndex:100 }}>
-        <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 20px" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", paddingTop:14 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:38, height:38, background:G.blue, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:900, color:"#fff", fontFamily:"'Syne',sans-serif" }}>IIT</div>
-              <div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, background:G.blue, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", lineHeight:1 }}>IITK Session Hub</div>
-                <div style={{ color:C.muted, fontSize:10, letterSpacing:1.5, textTransform:"uppercase" }}>AI for Leaders</div>
-              </div>
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <div style={{ background:`${C.blue}22`, border:`1px solid ${C.blue}44`, borderRadius:20, padding:"4px 12px", fontSize:12, color:C.blue, fontWeight:600 }}>🎓 {user.name}</div>
-              <button onClick={onLogout} style={{ background:"transparent", border:"none", color:C.muted, cursor:"pointer", fontSize:12 }}>Logout</button>
-            </div>
-          </div>
-          <div style={{ display:"flex", gap:0, marginTop:10, overflowX:"auto" }}>
-            {PTABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding:"9px 14px", background:"transparent", border:"none", borderBottom: tab===t.id ? `2px solid ${C.blue}` : "2px solid transparent", color: tab===t.id ? C.blue : C.muted, cursor:"pointer", fontSize:12, fontWeight:600, whiteSpace:"nowrap", transition:"all 0.2s" }}>{t.label}</button>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      <main style={{ maxWidth:1100, margin:"0 auto", padding:"28px 20px" }}>
-
-        {/* LIVE FEED */}
-        {tab==="feed" && (
-          <div>
-            <SectionTitle text="🌊 Live Class Feed" sub="See what everyone is learning in real time" grad={G.blue} />
-            {feedEntries.length === 0
-              ? <Card style={{ textAlign:"center", padding:48 }}><div style={{ fontSize:48, marginBottom:12 }}>🎓</div><div style={{ color:C.muted }}>No updates yet — be the first to share what you're learning!</div></Card>
-              : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:14 }}>
-                  {feedEntries.sort((a,b) => a.name.localeCompare(b.name)).map((e, i) => {
-                    const col = e.score >= 75 ? C.green : e.score >= 50 ? C.blue : e.score >= 25 ? C.orange : C.pink;
-                    const react = reactions?.[e.name.replace(/ /g,"_")];
-                    return (
-                      <Card key={i} grad={G.blue}>
-                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                          <div style={{ fontWeight:700, fontSize:14, color:C.blue }}>{e.name}</div>
-                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                            {react && <span style={{ fontSize:20 }}>{react}</span>}
-                            <div style={{ fontWeight:800, color:col, fontSize:16, fontFamily:"'Syne',sans-serif" }}>{e.score}%</div>
-                          </div>
-                        </div>
-                        <div style={{ height:6, background:C.card2, borderRadius:3, marginBottom:10 }}>
-                          <div style={{ height:"100%", width:`${e.score}%`, background: e.score>=75?G.green:e.score>=50?G.blue:e.score>=25?G.orange:G.pink, borderRadius:3, transition:"width 0.4s" }}/>
-                        </div>
-                        {e.note && <p style={{ color:C.muted, fontSize:13, margin:0, lineHeight:1.5 }}>{e.note}</p>}
-                        <div style={{ fontSize:10, color:C.border, marginTop:8 }}>{e.time}</div>
-                      </Card>
-                    );
-                  })}
-                </div>
-            }
-          </div>
-        )}
-
-        {/* MY LEARNING */}
-        {tab==="learn" && (
-          <div>
-            <SectionTitle text="📚 My Learning" sub="Rate your understanding and share what you learned" grad={G.green} />
-            <Card grad={G.green} style={{ maxWidth:560 }}>
-              <div style={{ marginBottom:20 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, fontSize:13 }}>
-                  <span style={{ color:C.muted }}>How well did you understand?</span>
-                  <span style={{ fontWeight:800, color: learningScore>=75?C.green:learningScore>=50?C.blue:learningScore>=25?C.orange:C.pink, fontFamily:"'Syne',sans-serif", fontSize:18 }}>{learningScore}%</span>
-                </div>
-                <input type="range" min={0} max={100} value={learningScore} onChange={e=>setLearningScore(+e.target.value)}
-                  style={{ width:"100%", accentColor:C.green, cursor:"pointer" }}/>
-                <div style={{ display:"flex", gap:6, marginTop:8 }}>
-                  {[["😕 Beginner",10],["🙂 Getting it",40],["😊 Understood",70],["🤩 Mastered",100]].map(([l,v])=>(
-                    <button key={v} onClick={()=>setLearningScore(v)} style={{ flex:1, padding:"5px 0", fontSize:9, borderRadius:8, border:`1px solid ${learningScore===v?C.green:C.border}`, background:learningScore===v?`${C.green}22`:"transparent", color:learningScore===v?C.green:C.muted, cursor:"pointer" }}>{l}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ marginBottom:16 }}>
-                <label style={{ display:"block", color:C.muted, fontSize:12, marginBottom:8, textTransform:"uppercase", letterSpacing:1 }}>What did you learn? (share with the class)</label>
-                <Input value={learningNote} onChange={e=>setLearningNote(e.target.value)} placeholder="e.g. I learned how neural networks work and their applications in leadership decision-making…" rows={4} />
-              </div>
-              <Btn grad={learningSaved ? G.green : G.green} onClick={saveLearning} style={{ width:"100%" }}>
-                {learningSaved ? "✅ Shared with class!" : "📤 Share with Class"}
-              </Btn>
-            </Card>
-          </div>
-        )}
-
-        {/* MY REACTION */}
-        {tab==="react" && (
-          <div>
-            <SectionTitle text="🙋 My Reaction" sub="Let the instructor know how you're feeling" grad={G.orange} />
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))", gap:14, maxWidth:700 }}>
-              {REACTIONS.map(([emoji, label]) => {
-                const active = myReaction === emoji;
-                return (
-                  <button key={emoji} onClick={() => sendReaction(emoji)} style={{ padding:"24px 16px", background: active ? `${C.orange}22` : C.card, border:`2px solid ${active?C.orange:C.border}`, borderRadius:16, cursor:"pointer", textAlign:"center", color:C.text, transition:"all 0.2s", transform: active ? "scale(1.05)" : "scale(1)" }}>
-                    <div style={{ fontSize:40, marginBottom:10 }}>{emoji}</div>
-                    <div style={{ fontSize:13, fontWeight:active?700:400, color:active?C.orange:C.muted }}>{label}</div>
-                    {active && <div style={{ marginTop:8, fontSize:10, color:C.orange, fontWeight:700 }}>● Active</div>}
-                  </button>
-                );
-              })}
-            </div>
-            {myReaction && (
-              <div style={{ marginTop:16 }}>
-                <Btn onClick={() => sendReaction(myReaction)} style={{ color:C.pink, borderColor:C.pink }}>✕ Clear my reaction</Btn>
-              </div>
-            )}
-
-            {/* Class reactions overview */}
-            <div style={{ marginTop:28 }}>
-              <div style={{ fontWeight:700, marginBottom:14, color:C.text, fontFamily:"'Syne',sans-serif" }}>Class Reactions Right Now:</div>
-              <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
-                {REACTIONS.map(([emoji]) => {
-                  const count = reactions ? Object.values(reactions).filter(r => r === emoji).length : 0;
-                  if (!count) return null;
-                  return (
-                    <div key={emoji} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 18px", display:"flex", alignItems:"center", gap:8 }}>
-                      <span style={{ fontSize:24 }}>{emoji}</span>
-                      <span style={{ fontWeight:800, fontSize:18, color:C.orange, fontFamily:"'Syne',sans-serif" }}>{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Q&A */}
-        {tab==="qa" && (
-          <div>
-            <SectionTitle text="💬 Q&A Board" sub="Ask questions — instructor will answer live" grad={G.purple} />
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1.3fr", gap:24 }}>
-              <Card grad={G.purple}>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, marginBottom:16, fontSize:15 }}>Ask a Question</div>
-                <Input value={question} onChange={e=>{setQuestion(e.target.value);setQSaved(false);}} placeholder="What's unclear? What do you want to know more about?" rows={4} style={{ marginBottom:14 }} />
-                <Btn grad={qSaved?G.green:G.purple} onClick={submitQuestion} style={{ width:"100%" }}>
-                  {qSaved ? "✅ Question submitted!" : "Submit Question"}
-                </Btn>
-              </Card>
-              <div style={{ display:"flex", flexDirection:"column", gap:12, maxHeight:480, overflowY:"auto" }}>
-                {questionEntries.length === 0
-                  ? <div style={{ color:C.muted, textAlign:"center", paddingTop:48 }}>No questions yet.</div>
-                  : questionEntries.map((q) => (
-                    <Card key={q.id} style={{ borderLeft:`3px solid ${q.answered?C.green:C.purple}`, padding:16 }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-                        <span style={{ fontWeight:700, fontSize:13, color:C.purple }}>{q.name}</span>
-                        <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                          <span style={{ fontSize:10, color:C.muted }}>{q.time}</span>
-                          {q.answered && <span style={{ fontSize:11, color:C.green, background:`${C.green}22`, padding:"2px 8px", borderRadius:20, fontWeight:600 }}>✅ Answered</span>}
-                        </div>
-                      </div>
-                      <p style={{ color:C.text, fontSize:13, margin:0, lineHeight:1.6 }}>{q.question}</p>
-                    </Card>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* QUIZ */}
-        {tab==="quiz" && (
-          <div>
-            <SectionTitle text="🧠 Quiz" sub="Test your knowledge" grad={G.orange} />
-            {quizList.length === 0
-              ? <Card style={{ textAlign:"center", padding:48 }}><div style={{ fontSize:48, marginBottom:12 }}>🧠</div><div style={{ color:C.muted }}>No quiz yet — instructor hasn't created one.</div></Card>
-              : <div style={{ maxWidth:600 }}>
-                  {quizList.map((q, i) => {
-                    const ans = myAnswers[q.id]; const done = ans !== undefined;
-                    return (
-                      <Card key={q.id} style={{ marginBottom:16 }} grad={G.orange}>
-                        <div style={{ fontWeight:700, fontSize:15, marginBottom:14 }}>Q{i+1}. {q.question}</div>
-                        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-                          {q.options.map((opt, j) => {
-                            let border=C.border, bg=C.card2, col=C.text;
-                            if(done){if(j===q.correct){border=C.green;bg=`${C.green}22`;col=C.green;}else if(j===ans){border=C.pink;bg=`${C.pink}22`;col=C.pink;}}
-                            return (
-                              <button key={j} onClick={()=>!done&&setMyAnswers(a=>({...a,[q.id]:j}))}
-                                style={{padding:"11px 16px",borderRadius:10,border:`1px solid ${border}`,background:bg,color:col,fontSize:13,cursor:done?"default":"pointer",textAlign:"left",transition:"all 0.15s"}}>
-                                {String.fromCharCode(65+j)}. {opt}{done&&j===q.correct&&" ✓"}{done&&j===ans&&j!==q.correct&&" ✗"}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {done && <div style={{marginTop:10,fontSize:12,color:ans===q.correct?C.green:C.pink,fontWeight:700}}>{ans===q.correct?"🎉 Correct!":"❌ Wrong — correct: "+String.fromCharCode(65+q.correct)}</div>}
-                      </Card>
-                    );
-                  })}
-                  {Object.keys(myAnswers).length===quizList.length && (
-                    <Card grad={G.green} style={{textAlign:"center",padding:28}}>
-                      <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,background:G.green,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-                        Score: {Object.entries(myAnswers).filter(([id,j])=>j===quizList.find(q=>q.id===id)?.correct).length}/{quizList.length}
-                      </div>
-                      <Btn onClick={()=>setMyAnswers({})} style={{marginTop:12}}>🔁 Retry</Btn>
-                    </Card>
-                  )}
-                </div>
-            }
-          </div>
-        )}
-
-        {/* NOTES */}
-        {tab==="notes" && (
-          <div>
-            <SectionTitle text="📌 Session Notes" sub="Key points posted by the instructor" grad={G.purple} />
-            {noteEntries.length === 0
-              ? <Card style={{textAlign:"center",padding:48}}><div style={{fontSize:48,marginBottom:12}}>📌</div><div style={{color:C.muted}}>No notes posted yet.</div></Card>
-              : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(250px,1fr))",gap:14}}>
-                  {noteEntries.map((n,i)=>(
-                    <Card key={i} style={{borderTop:`4px solid ${n.color}`}}>
-                      <div style={{fontWeight:700,color:n.color,marginBottom:8,fontSize:14}}>{n.title}</div>
-                      <p style={{color:C.muted,fontSize:13,margin:"0 0 8px",lineHeight:1.6}}>{n.body}</p>
-                      <div style={{fontSize:10,color:C.border}}>{n.time}</div>
-                    </Card>
-                  ))}
-                </div>
-            }
-          </div>
-        )}
-
-        {/* FEEDBACK */}
-        {tab==="feedback" && (
-          <div>
-            <SectionTitle text="⭐ Session Feedback" sub="Share your honest experience" grad={G.pink} />
-            <Card grad={G.pink} style={{maxWidth:520}}>
-              <div style={{marginBottom:16}}>
-                <label style={{display:"block",color:C.muted,fontSize:12,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Rating</label>
-                <div style={{display:"flex",gap:10}}>
-                  {STARS.map((em,i)=>(
-                    <button key={i} onClick={()=>setFbForm(f=>({...f,rating:i+1}))} style={{fontSize:30,background:"transparent",border:`2px solid ${fbForm.rating===i+1?C.pink:"transparent"}`,borderRadius:10,padding:"4px 8px",cursor:"pointer",transform:fbForm.rating===i+1?"scale(1.3)":"scale(1)",transition:"all 0.15s"}}>{em}</button>
-                  ))}
-                </div>
-              </div>
-              <Input value={fbForm.topic} onChange={e=>setFbForm(f=>({...f,topic:e.target.value}))} placeholder="Topic (e.g. AI Ethics, Neural Networks)" style={{marginBottom:12}} />
-              <Input value={fbForm.comment} onChange={e=>setFbForm(f=>({...f,comment:e.target.value}))} placeholder="What did you like? What could be better?" rows={4} style={{marginBottom:16}} />
-              <Btn grad={fbSaved?G.green:G.pink} onClick={submitFeedback} style={{width:"100%"}}>
-                {fbSaved?"✅ Feedback submitted!":"Submit Feedback ⭐"}
-              </Btn>
-            </Card>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// INSTRUCTOR APP
-// ─────────────────────────────────────────────────────────────
-function InstructorApp({ onLogout }) {
-  const [tab, setTab] = useState("dashboard");
-  const [noteForm, setNoteForm] = useState({ title:"", body:"", color:"#ff3cac" });
-  const [quizForm, setQuizForm] = useState({ question:"", options:["","","",""], correct:0 });
-  const [quizView, setQuizView] = useState("list");
-
-  const feed = useDB("feed");
-  const reactions = useDB("reactions");
-  const questions = useDB("questions");
-  const notes = useDB("notes");
-  const quizData = useDB("quiz/questions");
-  const feedbackData = useDB("feedback");
-
-  const feedEntries = feed ? Object.values(feed) : [];
-  const questionEntries = questions ? Object.entries(questions).map(([k,v])=>({id:k,...v})) : [];
-  const noteEntries = notes ? Object.entries(notes).map(([k,v])=>({id:k,...v})) : [];
-  const quizList = quizData ? Object.entries(quizData).map(([k,v])=>({id:k,...v})) : [];
-  const feedbackList = feedbackData ? Object.values(feedbackData) : [];
-
-  const avgScore = feedEntries.length ? Math.round(feedEntries.reduce((s,e)=>s+e.score,0)/feedEntries.length) : 0;
-  const totalReactions = reactions ? Object.values(reactions).filter(Boolean).length : 0;
-
-  const markAttendance = (name, val) => set(ref(db, `attendance/${name.replace(/ /g,"_")}`), val);
-  const attendance = useDB("attendance");
-
-  const postNote = () => {
-    if (!noteForm.title.trim() || !noteForm.body.trim()) return;
-    push(ref(db, "notes"), { ...noteForm, time: new Date().toLocaleTimeString("en-IN") });
-    setNoteForm({ title:"", body:"", color:"#ff3cac" });
-  };
-
-  const addQuizQuestion = () => {
-    if (!quizForm.question.trim() || quizForm.options.some(o=>!o.trim())) return;
-    push(ref(db, "quiz/questions"), { ...quizForm });
-    setQuizForm({ question:"", options:["","","",""], correct:0 });
-  };
-
-  const toggleAnswered = (q) => update(ref(db, `questions/${q.id}`), { answered: !q.answered });
-  const deleteQuestion = (id) => remove(ref(db, `questions/${id}`));
-  const deleteNote = (id) => remove(ref(db, `notes/${id}`));
-  const deleteQuizQ = (id) => remove(ref(db, `quiz/questions/${id}`));
-
-  const ITABS = [
-    { id:"dashboard", label:"📊 Dashboard" },
-    { id:"attendance", label:"✅ Attendance" },
-    { id:"feed", label:"🌊 Class Feed" },
-    { id:"qa", label:"💬 Q&A" },
-    { id:"notes", label:"📌 Post Notes" },
-    { id:"quiz", label:"🧠 Create Quiz" },
-    { id:"feedback", label:"⭐ Feedback" },
-    { id:"insights", label:"📈 Insights" },
-  ];
-
-  return (
-    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif",color:C.text}}>
-      <header style={{background:C.card,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100}}>
-        <div style={{maxWidth:1200,margin:"0 auto",padding:"0 20px"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",paddingTop:14}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:38,height:38,background:G.purple,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:900,color:"#fff",fontFamily:"'Syne',sans-serif"}}>IIT</div>
-              <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,background:G.purple,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1}}>IITK Session Hub</div>
-                <div style={{color:C.muted,fontSize:10,letterSpacing:1.5,textTransform:"uppercase"}}>Instructor Dashboard</div>
-              </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{background:`${C.purple}22`,border:`1px solid ${C.purple}44`,borderRadius:20,padding:"4px 12px",fontSize:12,color:C.purple,fontWeight:600}}>🧑‍🏫 Instructor</div>
-              <button onClick={onLogout} style={{background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:12}}>Logout</button>
-            </div>
-          </div>
-          <div style={{display:"flex",gap:0,marginTop:10,overflowX:"auto"}}>
-            {ITABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"9px 14px",background:"transparent",border:"none",borderBottom:tab===t.id?`2px solid ${C.purple}`:"2px solid transparent",color:tab===t.id?C.purple:C.muted,cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",transition:"all 0.2s"}}>{t.label}</button>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      <main style={{maxWidth:1200,margin:"0 auto",padding:"28px 20px"}}>
-
-        {/* DASHBOARD */}
-        {tab==="dashboard" && (
-          <div>
-            <SectionTitle text="📊 Instructor Dashboard" sub="Real-time session overview" grad={G.purple}/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:16,marginBottom:28}}>
-              <StatCard label="Submitted Learning" value={feedEntries.length} icon="📚" grad={G.blue}/>
-              <StatCard label="Avg Understanding" value={`${avgScore}%`} icon="📈" grad={G.green}/>
-              <StatCard label="Active Reactions" value={totalReactions} icon="🙋" grad={G.orange}/>
-              <StatCard label="Questions Asked" value={questionEntries.length} icon="💬" grad={G.purple}/>
-              <StatCard label="Unanswered" value={questionEntries.filter(q=>!q.answered).length} icon="❓" grad={G.pink}/>
-              <StatCard label="Feedbacks" value={feedbackList.length} icon="⭐" grad={G.gold||G.orange}/>
-            </div>
-
-            {/* Reaction Summary */}
-            <Card grad={G.orange} style={{marginBottom:20}}>
-              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:16,fontSize:15}}>🙋 Live Reactions</div>
-              <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                {REACTIONS.map(([emoji,label])=>{
-                  const count = reactions ? Object.values(reactions).filter(r=>r===emoji).length : 0;
-                  return(
-                    <div key={emoji} style={{display:"flex",alignItems:"center",gap:8,background:C.card2,padding:"10px 16px",borderRadius:12}}>
-                      <span style={{fontSize:22}}>{emoji}</span>
-                      <div><div style={{fontWeight:800,fontSize:16,color:C.orange,fontFamily:"'Syne',sans-serif"}}>{count}</div><div style={{fontSize:10,color:C.muted}}>{label}</div></div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-
-            {/* Latest questions */}
-            {questionEntries.filter(q=>!q.answered).length > 0 && (
-              <Card grad={G.purple}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>❓ Pending Questions</div>
-                {questionEntries.filter(q=>!q.answered).slice(0,4).map(q=>(
-                  <div key={q.id} style={{background:C.card2,borderRadius:10,padding:"10px 14px",marginBottom:10,borderLeft:`3px solid ${C.purple}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
-                    <div>
-                      <div style={{fontWeight:600,fontSize:13,color:C.purple,marginBottom:4}}>{q.name}</div>
-                      <div style={{color:C.text,fontSize:13}}>{q.question}</div>
-                    </div>
-                    <Btn grad={G.green} onClick={()=>toggleAnswered(q)} style={{whiteSpace:"nowrap",padding:"6px 14px",fontSize:12}}>✓ Done</Btn>
-                  </div>
-                ))}
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* ATTENDANCE */}
-        {tab==="attendance" && (
-          <div>
-            <SectionTitle text="✅ Attendance" sub={`${MEMBERS.filter(m=>attendance?.[m.replace(/ /g,"_")]).length} of 40 present`} grad={G.green}/>
-            <div style={{display:"flex",gap:10,marginBottom:20}}>
-              <Btn grad={G.green} onClick={()=>MEMBERS.forEach(m=>set(ref(db,`attendance/${m.replace(/ /g,"_")}`),true))}>✅ Mark All Present</Btn>
-              <Btn onClick={()=>MEMBERS.forEach(m=>remove(ref(db,`attendance/${m.replace(/ /g,"_")}`)))}>🗑 Clear All</Btn>
-            </div>
-            <Card>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8}}>
-                {MEMBERS.map(m=>{
-                  const key=m.replace(/ /g,"_");
-                  const present=!!attendance?.[key];
-                  return(
-                    <div key={m} onClick={()=>markAttendance(m,!present)}
-                      style={{padding:"10px 14px",borderRadius:12,cursor:"pointer",border:`1px solid ${present?C.green:C.border}`,background:present?`${C.green}15`:C.card2,display:"flex",alignItems:"center",gap:10,transition:"all 0.15s",userSelect:"none"}}>
-                      <div style={{width:26,height:26,borderRadius:"50%",background:present?G.green:C.border,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{present?"✓":m.split(" ")[1]}</div>
-                      <span style={{color:present?C.green:C.muted,fontSize:13,fontWeight:present?600:400}}>{m}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          </div>
-        )}
-
-        {/* CLASS FEED */}
-        {tab==="feed" && (
-          <div>
-            <SectionTitle text="🌊 Class Feed" sub="All participant learning updates" grad={G.blue}/>
-            {feedEntries.length===0
-              ? <Card style={{textAlign:"center",padding:48}}><div style={{color:C.muted}}>No updates yet.</div></Card>
-              : <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14}}>
-                  {feedEntries.map((e,i)=>{
-                    const col=e.score>=75?C.green:e.score>=50?C.blue:e.score>=25?C.orange:C.pink;
-                    const react=reactions?.[e.name.replace(/ /g,"_")];
-                    return(
-                      <Card key={i} grad={G.blue}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                          <div style={{fontWeight:700,fontSize:14,color:C.blue}}>{e.name}</div>
-                          <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            {react&&<span style={{fontSize:18}}>{react}</span>}
-                            <span style={{fontWeight:800,color:col,fontSize:16,fontFamily:"'Syne',sans-serif"}}>{e.score}%</span>
-                          </div>
-                        </div>
-                        <div style={{height:6,background:C.card2,borderRadius:3,marginBottom:10}}>
-                          <div style={{height:"100%",width:`${e.score}%`,background:e.score>=75?G.green:e.score>=50?G.blue:e.score>=25?G.orange:G.pink,borderRadius:3}}/>
-                        </div>
-                        {e.note&&<p style={{color:C.muted,fontSize:12,margin:0,lineHeight:1.5}}>{e.note}</p>}
-                        <div style={{fontSize:10,color:C.border,marginTop:8}}>{e.time}</div>
-                      </Card>
-                    );
-                  })}
-                </div>
-            }
-          </div>
-        )}
-
-        {/* Q&A */}
-        {tab==="qa" && (
-          <div>
-            <SectionTitle text="💬 Q&A Management" sub="Answer and manage participant questions" grad={G.purple}/>
-            {questionEntries.length===0
-              ? <Card style={{textAlign:"center",padding:48}}><div style={{color:C.muted}}>No questions yet.</div></Card>
-              : <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                  {questionEntries.sort((a,b)=>a.answered-b.answered).map(q=>(
-                    <Card key={q.id} style={{borderLeft:`3px solid ${q.answered?C.green:C.purple}`,padding:18}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
-                        <div style={{flex:1}}>
-                          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
-                            <span style={{fontWeight:700,fontSize:13,color:C.purple}}>{q.name}</span>
-                            <span style={{fontSize:10,color:C.muted}}>{q.time}</span>
-                          </div>
-                          <p style={{color:C.text,fontSize:14,margin:0,lineHeight:1.6}}>{q.question}</p>
-                        </div>
-                        <div style={{display:"flex",gap:8,flexShrink:0}}>
-                          <Btn grad={q.answered?G.green:G.purple} onClick={()=>toggleAnswered(q)} style={{padding:"6px 14px",fontSize:12}}>
-                            {q.answered?"✅ Answered":"Mark Done"}
-                          </Btn>
-                          <Btn onClick={()=>deleteQuestion(q.id)} style={{padding:"6px 12px",fontSize:12,color:C.pink,borderColor:C.pink}}>✕</Btn>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-            }
-          </div>
-        )}
-
-        {/* POST NOTES */}
-        {tab==="notes" && (
-          <div>
-            <SectionTitle text="📌 Post Session Notes" sub="Share key points — visible to all participants" grad={G.pink}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1.5fr",gap:24}}>
-              <Card grad={G.pink}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:16,fontSize:15}}>New Note</div>
-                <Input value={noteForm.title} onChange={e=>setNoteForm(f=>({...f,title:e.target.value}))} placeholder="Note title…" style={{marginBottom:12}}/>
-                <Input value={noteForm.body} onChange={e=>setNoteForm(f=>({...f,body:e.target.value}))} placeholder="Write the note content…" rows={5} style={{marginBottom:14}}/>
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Color</div>
-                  <div style={{display:"flex",gap:8}}>
-                    {NOTE_COLORS.map(col=>(
-                      <button key={col} onClick={()=>setNoteForm(f=>({...f,color:col}))} style={{width:26,height:26,borderRadius:"50%",background:col,border:noteForm.color===col?"3px solid #fff":"3px solid transparent",cursor:"pointer"}}/>
-                    ))}
-                  </div>
-                </div>
-                <Btn grad={G.pink} onClick={postNote} style={{width:"100%"}}>📌 Post to All Participants</Btn>
-              </Card>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignContent:"start"}}>
-                {noteEntries.length===0
-                  ? <div style={{color:C.muted,gridColumn:"1/-1",textAlign:"center",paddingTop:48}}>No notes yet.</div>
-                  : noteEntries.map(n=>(
-                    <Card key={n.id} style={{borderTop:`4px solid ${n.color}`,position:"relative"}}>
-                      <button onClick={()=>deleteNote(n.id)} style={{position:"absolute",top:12,right:12,background:"transparent",border:"none",color:C.muted,cursor:"pointer",fontSize:14}}>✕</button>
-                      <div style={{fontWeight:700,color:n.color,marginBottom:8,fontSize:13,paddingRight:20}}>{n.title}</div>
-                      <p style={{color:C.muted,fontSize:12,margin:"0 0 8px",lineHeight:1.5}}>{n.body}</p>
-                      <div style={{fontSize:10,color:C.border}}>{n.time}</div>
-                    </Card>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CREATE QUIZ */}
-        {tab==="quiz" && (
-          <div>
-            <SectionTitle text="🧠 Create Quiz" sub="Add MCQ questions for participants" grad={G.orange}/>
-            <div style={{display:"flex",gap:10,marginBottom:24}}>
-              {[["list","📋 Questions"],["add","➕ Add Question"]].map(([v,label])=>(
-                <Btn key={v} grad={quizView===v?G.orange:undefined} onClick={()=>setQuizView(v)}>{label}</Btn>
-              ))}
-            </div>
-            {quizView==="add" && (
-              <Card grad={G.orange} style={{maxWidth:580}}>
-                <Input value={quizForm.question} onChange={e=>setQuizForm(f=>({...f,question:e.target.value}))} placeholder="Enter question…" style={{marginBottom:16,fontWeight:600,fontSize:15}}/>
-                {quizForm.options.map((opt,i)=>(
-                  <div key={i} style={{display:"flex",gap:10,marginBottom:10,alignItems:"center"}}>
-                    <button onClick={()=>setQuizForm(f=>({...f,correct:i}))} style={{width:30,height:30,borderRadius:"50%",border:`2px solid ${quizForm.correct===i?C.green:C.border}`,background:quizForm.correct===i?`${C.green}22`:"transparent",color:quizForm.correct===i?C.green:C.muted,cursor:"pointer",fontWeight:700,flexShrink:0,fontSize:12}}>{String.fromCharCode(65+i)}</button>
-                    <Input value={opt} onChange={e=>{const ops=[...quizForm.options];ops[i]=e.target.value;setQuizForm(f=>({...f,options:ops}));}} placeholder={`Option ${String.fromCharCode(65+i)}`} style={{border:`1px solid ${quizForm.correct===i?C.green+"66":C.border}`}}/>
-                  </div>
-                ))}
-                <div style={{fontSize:11,color:C.muted,marginBottom:14}}>💡 Click the letter to mark correct answer</div>
-                <Btn grad={G.orange} onClick={addQuizQuestion} style={{width:"100%"}}>Add Question 🧠</Btn>
-              </Card>
-            )}
-            {quizView==="list" && (
-              <div>
-                {quizList.length===0
-                  ? <Card style={{textAlign:"center",padding:48}}><div style={{color:C.muted}}>No questions yet.</div></Card>
-                  : quizList.map((q,i)=>(
-                    <Card key={q.id} style={{marginBottom:14}} grad={G.orange}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-                        <div style={{fontWeight:700,fontSize:15}}>Q{i+1}. {q.question}</div>
-                        <Btn onClick={()=>deleteQuizQ(q.id)} style={{padding:"5px 12px",fontSize:12,color:C.pink,borderColor:C.pink}}>✕</Btn>
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                        {q.options.map((opt,j)=>(
-                          <div key={j} style={{padding:"8px 14px",borderRadius:10,background:j===q.correct?`${C.green}22`:C.card2,border:`1px solid ${j===q.correct?C.green:C.border}`,fontSize:13,color:j===q.correct?C.green:C.muted}}>
-                            {String.fromCharCode(65+j)}. {opt} {j===q.correct&&"✓"}
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* FEEDBACK VIEW */}
-        {tab==="feedback" && (
-          <div>
-            <SectionTitle text="⭐ All Feedback" sub="What participants are saying" grad={G.pink}/>
-            {feedbackList.length===0
-              ? <Card style={{textAlign:"center",padding:48}}><div style={{color:C.muted}}>No feedback yet.</div></Card>
-              : <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                  {feedbackList.map((f,i)=>(
-                    <Card key={i} style={{borderLeft:`3px solid ${C.pink}`}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                        <div>
-                          <span style={{fontWeight:700,fontSize:14}}>{f.name}</span>
-                          {f.topic&&<span style={{marginLeft:8,fontSize:11,background:`${C.pink}22`,color:C.pink,padding:"2px 8px",borderRadius:20}}>{f.topic}</span>}
-                        </div>
-                        <span style={{fontSize:22}}>{STARS[f.rating-1]}</span>
-                      </div>
-                      <p style={{color:C.muted,fontSize:13,margin:"0 0 6px",lineHeight:1.6}}>{f.comment}</p>
-                      <div style={{fontSize:10,color:C.border}}>{f.time}</div>
-                    </Card>
-                  ))}
-                </div>
-            }
-          </div>
-        )}
-
-        {/* INSIGHTS */}
-        {tab==="insights" && (
-          <div>
-            <SectionTitle text="📈 Insights" grad={G.green}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-              <Card grad={G.green}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:20,fontSize:15}}>Attendance</div>
-                <div style={{display:"flex",alignItems:"center",gap:24}}>
-                  <div style={{position:"relative",width:90,height:90,flexShrink:0}}>
-                    <svg viewBox="0 0 36 36" style={{width:90,height:90,transform:"rotate(-90deg)"}}>
-                      <circle cx="18" cy="18" r="15.9" fill="none" stroke={C.card2} strokeWidth="3.5"/>
-                      <circle cx="18" cy="18" r="15.9" fill="none" stroke={C.green} strokeWidth="3.5"
-                        strokeDasharray={`${(MEMBERS.filter(m=>attendance?.[m.replace(/ /g,"_")]).length/40)*100} ${100-(MEMBERS.filter(m=>attendance?.[m.replace(/ /g,"_")]).length/40)*100}`} strokeLinecap="round"/>
-                    </svg>
-                    <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,color:C.green}}>
-                      {Math.round((MEMBERS.filter(m=>attendance?.[m.replace(/ /g,"_")]).length/40)*100)}%
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:24,fontWeight:800,color:C.green,fontFamily:"'Syne',sans-serif"}}>{MEMBERS.filter(m=>attendance?.[m.replace(/ /g,"_")]).length}</div>
-                    <div style={{color:C.muted,fontSize:12}}>Present</div>
-                    <div style={{fontSize:18,fontWeight:700,color:C.pink,fontFamily:"'Syne',sans-serif",marginTop:8}}>{40-MEMBERS.filter(m=>attendance?.[m.replace(/ /g,"_")]).length}</div>
-                    <div style={{color:C.muted,fontSize:12}}>Absent</div>
-                  </div>
-                </div>
-              </Card>
-              <Card grad={G.pink}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:16,fontSize:15}}>Feedback Sentiment</div>
-                {feedbackList.length===0?<div style={{color:C.muted,fontSize:13}}>No feedback yet.</div>:(
-                  <div>
-                    {STARS.map((em,i)=>{
-                      const cnt=feedbackList.filter(f=>f.rating===i+1).length;
-                      const pct=Math.round((cnt/feedbackList.length)*100);
-                      return(
-                        <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                          <span style={{fontSize:18,width:26}}>{em}</span>
-                          <div style={{flex:1,height:10,background:C.card2,borderRadius:5,overflow:"hidden"}}>
-                            <div style={{height:"100%",width:`${pct}%`,background:G.pink,borderRadius:5,transition:"width 0.5s"}}/>
-                          </div>
-                          <span style={{color:C.muted,fontSize:12,width:24,textAlign:"right"}}>{cnt}</span>
-                        </div>
-                      );
-                    })}
-                    <div style={{marginTop:10,fontSize:13,color:C.pink,fontWeight:700}}>Avg: {(feedbackList.reduce((a,f)=>a+f.rating,0)/feedbackList.length).toFixed(1)} / 5</div>
-                  </div>
-                )}
-              </Card>
-              <Card grad={G.blue} style={{gridColumn:"1/-1"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:20,fontSize:15}}>Learning Distribution</div>
-                {feedEntries.length===0?<div style={{color:C.muted,fontSize:13}}>No learning data yet.</div>:(
-                  <div>
-                    <div style={{display:"flex",alignItems:"flex-end",gap:6,height:120,marginBottom:8}}>
-                      {Array.from({length:10},(_,i)=>{
-                        const min=i*10,max=min+9;
-                        const cnt=feedEntries.filter(e=>e.score>=min&&e.score<=max).length;
-                        const maxCnt=Math.max(...Array.from({length:10},(__,j)=>feedEntries.filter(e=>e.score>=j*10&&e.score<=j*10+9).length),1);
-                        const h=Math.max(4,(cnt/maxCnt)*110);
-                        const g=min>=75?G.green:min>=50?G.blue:min>=25?G.orange:G.pink;
-                        return(
-                          <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                            {cnt>0&&<div style={{fontSize:11,fontWeight:700,color:C.muted}}>{cnt}</div>}
-                            <div style={{width:"100%",height:h,background:g,borderRadius:"5px 5px 0 0",transition:"height 0.5s"}}/>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{display:"flex",gap:6}}>
-                      {Array.from({length:10},(_,i)=><div key={i} style={{flex:1,fontSize:9,color:C.muted,textAlign:"center"}}>{i*10}</div>)}
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginTop:16}}>
-                      {[["🤩 Mastered",75,100,G.green],["😊 Good",50,74,G.blue],["🙂 Getting it",25,49,G.orange],["😕 Beginner",0,24,G.pink]].map(([label,min,max,g])=>(
-                        <div key={label} style={{background:C.card2,borderRadius:12,padding:"14px 10px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-                          <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:g}}/>
-                          <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,background:g,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{feedEntries.filter(e=>e.score>=min&&e.score<=max).length}</div>
-                          <div style={{fontSize:10,color:C.muted,marginTop:4}}>{label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            </div>
-          </div>
-        )}
-      </main>
-
-      <footer style={{textAlign:"center",padding:"20px",color:C.border,fontSize:11,letterSpacing:1,borderTop:`1px solid ${C.border}`,marginTop:40}}>
-        IITK Session Hub · AI for Leaders
-      </footer>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// ROOT
-// ─────────────────────────────────────────────────────────────
+// ── MAIN APP ─────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
-  if (!user) return <LoginScreen onLogin={setUser} />;
-  if (user.role === "instructor") return <InstructorApp onLogout={() => setUser(null)} />;
-  return <ParticipantApp user={user} onLogout={() => setUser(null)} />;
+  if (!user) return <Login onLogin={setUser} />;
+  return <MainApp user={user} onLogout={() => setUser(null)} />;
+}
+
+function MainApp({ user, onLogout }) {
+  const [tab, setTab] = useState("dashboard");
+  const [modal, setModal] = useState(null);
+
+  // Firebase data
+  const projects = useDB("projects");
+  const incidents = useDB("incidents");
+  const tasks = useDB("tasks");
+  const announcements = useDB("announcements");
+  const capacity = useDB("capacity");
+
+  const projectList = projects ? Object.entries(projects).map(([k, v]) => ({ id: k, ...v })) : [];
+  const incidentList = incidents ? Object.entries(incidents).map(([k, v]) => ({ id: k, ...v })) : [];
+  const taskList = tasks ? Object.entries(tasks).map(([k, v]) => ({ id: k, ...v })) : [];
+  const announcementList = announcements ? Object.values(announcements) : [];
+
+  // Stats
+  const activeProjects = projectList.filter(p => p.status === "Active" || p.status === "In Progress").length;
+  const openIncidents = incidentList.filter(i => i.status === "Open").length;
+  const criticalIncidents = incidentList.filter(i => i.priority === "Critical" && i.status === "Open").length;
+  const myTasks = taskList.filter(t => t.assignee === user.name);
+  const completedTasks = taskList.filter(t => t.status === "Done").length;
+
+  const TABS_BY_ROLE = {
+    leadership: [
+      { id: "dashboard", label: "📊 Dashboard" },
+      { id: "projects", label: "🚀 Projects" },
+      { id: "incidents", label: "🔥 Incidents" },
+      { id: "resources", label: "👥 Resources" },
+      { id: "announcements", label: "📢 Announcements" },
+      { id: "reports", label: "📈 Reports" },
+    ],
+    pm: [
+      { id: "dashboard", label: "📊 Dashboard" },
+      { id: "projects", label: "🚀 Projects" },
+      { id: "tasks", label: "✅ Tasks" },
+      { id: "incidents", label: "🔥 Incidents" },
+      { id: "resources", label: "👥 Resources" },
+      { id: "announcements", label: "📢 Announcements" },
+    ],
+    dev: [
+      { id: "dashboard", label: "📊 Dashboard" },
+      { id: "mytasks", label: "✅ My Tasks" },
+      { id: "incidents", label: "🔥 Incidents" },
+      { id: "projects", label: "🚀 Projects" },
+      { id: "announcements", label: "📢 Announcements" },
+    ],
+  };
+
+  const tabs = TABS_BY_ROLE[user.role];
+  const roleGrad = user.role === "leadership" ? G.purple : user.role === "pm" ? G.blue : G.green;
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans',sans-serif", color: C.text }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap');*{box-sizing:border-box}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}input,textarea,select{font-family:'DM Sans',sans-serif}button{font-family:'DM Sans',sans-serif}`}</style>
+
+      {/* Header */}
+      <header style={{ background: C.card, borderBottom: `1px solid ${C.border}`, position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ maxWidth: 1300, margin: "0 auto", padding: "0 24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ fontSize: 24 }}>☁️</div>
+              <div>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, background: G.blue, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>OCI Team Hub</div>
+                <div style={{ color: C.muted, fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase" }}>Oracle Cloud Infrastructure</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              {criticalIncidents > 0 && (
+                <div style={{ background: `${C.red}22`, border: `1px solid ${C.red}44`, borderRadius: 20, padding: "4px 12px", fontSize: 12, color: C.red, fontWeight: 700 }}>
+                  🔴 {criticalIncidents} Critical
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: `${C.border}`, borderRadius: 20, padding: "6px 12px" }}>
+                <Avatar initials={user.avatar} size={24} grad={roleGrad} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{user.name}</span>
+                <Badge text={ROLES[user.role]} color={user.role === "leadership" ? C.purple : user.role === "pm" ? C.blue : C.green} />
+              </div>
+              <Btn onClick={onLogout} sm style={{ color: C.muted }}>Logout</Btn>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 0, marginTop: 10, overflowX: "auto" }}>
+            {tabs.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "9px 16px", background: "transparent", border: "none", borderBottom: tab === t.id ? `2px solid ${C.blue}` : "2px solid transparent", color: tab === t.id ? C.blue : C.muted, cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", transition: "all 0.2s" }}>{t.label}</button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main style={{ maxWidth: 1300, margin: "0 auto", padding: "28px 24px" }}>
+
+        {/* ── DASHBOARD ──────────────────────────────────────── */}
+        {tab === "dashboard" && (
+          <DashboardTab user={user} projectList={projectList} incidentList={incidentList} taskList={taskList} announcementList={announcementList} myTasks={myTasks} activeProjects={activeProjects} openIncidents={openIncidents} criticalIncidents={criticalIncidents} completedTasks={completedTasks} roleGrad={roleGrad} />
+        )}
+
+        {/* ── PROJECTS ──────────────────────────────────────── */}
+        {tab === "projects" && (
+          <ProjectsTab user={user} projectList={projectList} />
+        )}
+
+        {/* ── INCIDENTS ─────────────────────────────────────── */}
+        {tab === "incidents" && (
+          <IncidentsTab user={user} incidentList={incidentList} />
+        )}
+
+        {/* ── TASKS (PM view) ────────────────────────────────── */}
+        {tab === "tasks" && (
+          <TasksTab user={user} taskList={taskList} projectList={projectList} allTasks />
+        )}
+
+        {/* ── MY TASKS (Dev view) ───────────────────────────── */}
+        {tab === "mytasks" && (
+          <TasksTab user={user} taskList={myTasks} projectList={projectList} />
+        )}
+
+        {/* ── RESOURCES ─────────────────────────────────────── */}
+        {tab === "resources" && (
+          <ResourcesTab user={user} taskList={taskList} projectList={projectList} capacity={capacity} />
+        )}
+
+        {/* ── ANNOUNCEMENTS ─────────────────────────────────── */}
+        {tab === "announcements" && (
+          <AnnouncementsTab user={user} announcementList={announcementList} />
+        )}
+
+        {/* ── REPORTS ───────────────────────────────────────── */}
+        {tab === "reports" && (
+          <ReportsTab projectList={projectList} incidentList={incidentList} taskList={taskList} />
+        )}
+
+      </main>
+    </div>
+  );
+}
+
+// ── DASHBOARD TAB ────────────────────────────────────────────
+function DashboardTab({ user, projectList, incidentList, taskList, announcementList, myTasks, activeProjects, openIncidents, criticalIncidents, completedTasks, roleGrad }) {
+  return (
+    <div>
+      <div style={{ marginBottom: 28 }}>
+        <h2 style={{ fontFamily: "'Syne',sans-serif", fontSize: 26, fontWeight: 800, background: roleGrad, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: "0 0 4px" }}>
+          Welcome back, {user.name.split(" ")[0]}! 👋
+        </h2>
+        <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>{new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 16, marginBottom: 24 }}>
+        <StatCard label="Active Projects" value={activeProjects} icon="🚀" grad={G.blue} sub={`${projectList.length} total`} />
+        <StatCard label="Open Incidents" value={openIncidents} icon="🔥" grad={openIncidents > 0 ? G.red : G.green} sub={criticalIncidents > 0 ? `${criticalIncidents} critical` : "All clear"} />
+        <StatCard label="Total Tasks" value={taskList.length} icon="✅" grad={G.purple} sub={`${completedTasks} done`} />
+        <StatCard label="Team Members" value={USERS.length} icon="👥" grad={G.green} sub="Across all roles" />
+        {user.role === "dev" && <StatCard label="My Tasks" value={myTasks.length} icon="🎯" grad={G.orange} sub={`${myTasks.filter(t=>t.status==="Done").length} done`} />}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 20 }}>
+        {/* Recent Incidents */}
+        <Card grad={G.red}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 16, fontSize: 15, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>🔥 Recent Incidents</span>
+            <Badge text={`${openIncidents} Open`} color={openIncidents > 0 ? C.red : C.green} />
+          </div>
+          {incidentList.length === 0
+            ? <div style={{ color: C.muted, fontSize: 13, textAlign: "center", padding: "24px 0" }}>✅ No incidents reported</div>
+            : incidentList.slice(0, 5).map(inc => (
+              <div key={inc.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: PRIORITY_COLORS[inc.priority] || C.muted, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inc.title}</div>
+                  <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{inc.project} · {inc.assignee}</div>
+                </div>
+                <Badge text={inc.status} color={STATUS_COLORS[inc.status] || C.muted} />
+              </div>
+            ))}
+        </Card>
+
+        {/* Right column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Projects status */}
+          <Card grad={G.blue}>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 14, fontSize: 15 }}>🚀 Project Status</div>
+            {projectList.length === 0
+              ? <div style={{ color: C.muted, fontSize: 13 }}>No projects yet.</div>
+              : projectList.slice(0, 4).map(p => (
+                <div key={p.id} style={{ marginBottom: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "65%" }}>{p.name}</span>
+                    <Badge text={p.status} color={STATUS_COLORS[p.status] || C.muted} />
+                  </div>
+                  <div style={{ height: 5, background: C.card2, borderRadius: 3 }}>
+                    <div style={{ height: "100%", width: `${p.progress || 0}%`, background: p.progress >= 75 ? G.green : p.progress >= 40 ? G.blue : G.orange, borderRadius: 3, transition: "width 0.5s" }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{p.progress || 0}% complete</div>
+                </div>
+              ))}
+          </Card>
+
+          {/* Announcements */}
+          <Card grad={G.purple}>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 12, fontSize: 15 }}>📢 Latest Updates</div>
+            {announcementList.length === 0
+              ? <div style={{ color: C.muted, fontSize: 13 }}>No announcements.</div>
+              : announcementList.slice(-3).reverse().map((a, i) => (
+                <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{a.title}</div>
+                  <div style={{ color: C.muted, fontSize: 12, marginTop: 3, lineHeight: 1.5 }}>{a.body}</div>
+                  <div style={{ fontSize: 10, color: C.dim, marginTop: 4 }}>{a.author} · {a.time}</div>
+                </div>
+              ))}
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── PROJECTS TAB ─────────────────────────────────────────────
+function ProjectsTab({ user, projectList }) {
+  const canAdd = user.role !== "dev";
+  const [showForm, setShowForm] = useState(false);
+  const [filter, setFilter] = useState("All");
+  const [form, setForm] = useState({ name: "", description: "", status: "Planning", priority: "Medium", owner: "", team: [], progress: 0, dueDate: "" });
+
+  const saveProject = () => {
+    if (!form.name.trim()) return;
+    push(ref(db, "projects"), { ...form, createdBy: user.name, createdAt: now() });
+    setForm({ name: "", description: "", status: "Planning", priority: "Medium", owner: "", team: [], progress: 0, dueDate: "" });
+    setShowForm(false);
+  };
+
+  const updateProgress = (id, progress) => update(ref(db, `projects/${id}`), { progress: Number(progress) });
+  const updateStatus = (id, status) => update(ref(db, `projects/${id}`), { status });
+  const deleteProject = (id) => remove(ref(db, `projects/${id}`));
+
+  const filtered = filter === "All" ? projectList : projectList.filter(p => p.status === filter);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+        <SectionTitle text="🚀 Projects" sub={`${projectList.length} total projects`} grad={G.blue} />
+        {canAdd && <Btn grad={G.blue} onClick={() => setShowForm(!showForm)}>+ New Project</Btn>}
+      </div>
+
+      {/* Filter */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {["All", "Planning", "Active", "In Progress", "On Hold", "Completed"].map(s => (
+          <button key={s} onClick={() => setFilter(s)} style={{ padding: "6px 14px", borderRadius: 20, border: `1px solid ${filter === s ? C.blue : C.border}`, background: filter === s ? `${C.blue}22` : "transparent", color: filter === s ? C.blue : C.muted, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>{s}</button>
+        ))}
+      </div>
+
+      {/* Add Form */}
+      {showForm && canAdd && (
+        <Card grad={G.blue} style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 16, fontSize: 15 }}>New Project</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Project name *" />
+            <Select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+              {["Planning", "Active", "In Progress", "On Hold", "Completed"].map(s => <option key={s}>{s}</option>)}
+            </Select>
+            <Select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
+              {["Critical", "High", "Medium", "Low"].map(s => <option key={s}>{s}</option>)}
+            </Select>
+            <Select value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))}>
+              <option value="">Assign Owner</option>
+              {USERS.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+            </Select>
+            <Input value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} type="date" />
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ color: C.muted, fontSize: 12, whiteSpace: "nowrap" }}>Progress: {form.progress}%</span>
+              <input type="range" min={0} max={100} value={form.progress} onChange={e => setForm(f => ({ ...f, progress: +e.target.value }))} style={{ flex: 1, accentColor: C.blue }} />
+            </div>
+          </div>
+          <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Project description" rows={2} style={{ marginTop: 12 }} />
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <Btn grad={G.blue} onClick={saveProject}>Save Project</Btn>
+            <Btn onClick={() => setShowForm(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {/* Project Cards */}
+      {filtered.length === 0
+        ? <Card style={{ textAlign: "center", padding: 48 }}><div style={{ color: C.muted }}>No projects found.</div></Card>
+        : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 16 }}>
+          {filtered.map(p => (
+            <Card key={p.id} grad={G.blue}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.name}</div>
+                  {p.description && <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, marginBottom: 8 }}>{p.description}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                  <Badge text={p.priority} color={PRIORITY_COLORS[p.priority] || C.muted} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
+                  <span style={{ color: C.muted }}>Progress</span>
+                  <span style={{ color: C.cyan, fontWeight: 700 }}>{p.progress || 0}%</span>
+                </div>
+                <div style={{ height: 6, background: C.card2, borderRadius: 3 }}>
+                  <div style={{ height: "100%", width: `${p.progress || 0}%`, background: (p.progress || 0) >= 75 ? G.green : (p.progress || 0) >= 40 ? G.blue : G.orange, borderRadius: 3, transition: "width 0.4s" }} />
+                </div>
+                {canAdd && <input type="range" min={0} max={100} value={p.progress || 0} onChange={e => updateProgress(p.id, e.target.value)} style={{ width: "100%", accentColor: C.blue, marginTop: 4 }} />}
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Badge text={p.status} color={STATUS_COLORS[p.status] || C.muted} />
+                  {p.owner && <div style={{ fontSize: 12, color: C.muted }}>👤 {p.owner}</div>}
+                </div>
+                {canAdd && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Select value={p.status} onChange={e => updateStatus(p.id, e.target.value)} style={{ width: "auto", padding: "4px 8px", fontSize: 11 }}>
+                      {["Planning", "Active", "In Progress", "On Hold", "Completed"].map(s => <option key={s}>{s}</option>)}
+                    </Select>
+                    <Btn sm danger onClick={() => deleteProject(p.id)}>✕</Btn>
+                  </div>
+                )}
+              </div>
+              {p.dueDate && <div style={{ fontSize: 11, color: C.muted, marginTop: 8 }}>📅 Due: {p.dueDate}</div>}
+            </Card>
+          ))}
+        </div>
+      }
+    </div>
+  );
+}
+
+// ── INCIDENTS TAB ────────────────────────────────────────────
+function IncidentsTab({ user, incidentList }) {
+  const [showForm, setShowForm] = useState(false);
+  const [filter, setFilter] = useState("All");
+  const [form, setForm] = useState({ title: "", description: "", priority: "High", status: "Open", project: "", assignee: "", type: "Bug" });
+
+  const save = () => {
+    if (!form.title.trim()) return;
+    push(ref(db, "incidents"), { ...form, reportedBy: user.name, time: now() });
+    setForm({ title: "", description: "", priority: "High", status: "Open", project: "", assignee: "", type: "Bug" });
+    setShowForm(false);
+  };
+
+  const updateStatus = (id, status) => update(ref(db, `incidents/${id}`), { status });
+  const deleteIncident = (id) => remove(ref(db, `incidents/${id}`));
+
+  const filtered = filter === "All" ? incidentList : incidentList.filter(i => i.priority === filter || i.status === filter);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+        <SectionTitle text="🔥 Incidents & Issues" sub={`${incidentList.filter(i => i.status === "Open").length} open · ${incidentList.filter(i => i.priority === "Critical").length} critical`} grad={G.red} />
+        <Btn grad={G.red} onClick={() => setShowForm(!showForm)}>+ Report Incident</Btn>
+      </div>
+
+      {/* Filter chips */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+        {["All", "Critical", "High", "Medium", "Low", "Open", "Resolved", "Closed"].map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 13px", borderRadius: 20, border: `1px solid ${filter === f ? C.red : C.border}`, background: filter === f ? `${C.red}22` : "transparent", color: filter === f ? C.red : C.muted, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>{f}</button>
+        ))}
+      </div>
+
+      {showForm && (
+        <Card grad={G.red} style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 16, fontSize: 15 }}>Report Incident</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Incident title *" />
+            <Select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+              {["Bug", "Outage", "Performance", "Security", "Data Issue", "Other"].map(t => <option key={t}>{t}</option>)}
+            </Select>
+            <Select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
+              {["Critical", "High", "Medium", "Low"].map(p => <option key={p}>{p}</option>)}
+            </Select>
+            <Select value={form.assignee} onChange={e => setForm(f => ({ ...f, assignee: e.target.value }))}>
+              <option value="">Assign to…</option>
+              {USERS.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+            </Select>
+            <Input value={form.project} onChange={e => setForm(f => ({ ...f, project: e.target.value }))} placeholder="Related project" />
+          </div>
+          <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the incident…" rows={3} style={{ marginTop: 12 }} />
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <Btn grad={G.red} onClick={save}>🔥 Report Incident</Btn>
+            <Btn onClick={() => setShowForm(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {filtered.length === 0
+        ? <Card style={{ textAlign: "center", padding: 48 }}><div style={{ fontSize: 40, marginBottom: 12 }}>✅</div><div style={{ color: C.muted }}>No incidents found!</div></Card>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {filtered.map(inc => (
+            <Card key={inc.id} style={{ borderLeft: `3px solid ${PRIORITY_COLORS[inc.priority] || C.muted}` }}>
+              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: 15 }}>{inc.title}</span>
+                    <Badge text={inc.priority} color={PRIORITY_COLORS[inc.priority] || C.muted} />
+                    <Badge text={inc.type || "Bug"} color={C.cyan} />
+                  </div>
+                  {inc.description && <p style={{ color: C.muted, fontSize: 13, margin: "0 0 8px", lineHeight: 1.5 }}>{inc.description}</p>}
+                  <div style={{ display: "flex", gap: 16, fontSize: 12, color: C.muted, flexWrap: "wrap" }}>
+                    {inc.project && <span>📁 {inc.project}</span>}
+                    {inc.assignee && <span>👤 {inc.assignee}</span>}
+                    <span>🕐 {inc.time}</span>
+                    <span>Reported by {inc.reportedBy}</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>
+                  <Badge text={inc.status} color={STATUS_COLORS[inc.status] || C.muted} />
+                  <Select value={inc.status} onChange={e => updateStatus(inc.id, e.target.value)} style={{ width: "auto", padding: "4px 8px", fontSize: 11 }}>
+                    {["Open", "In Progress", "Resolved", "Closed"].map(s => <option key={s}>{s}</option>)}
+                  </Select>
+                  <Btn sm danger onClick={() => deleteIncident(inc.id)}>✕</Btn>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      }
+    </div>
+  );
+}
+
+// ── TASKS TAB ────────────────────────────────────────────────
+function TasksTab({ user, taskList, projectList, allTasks }) {
+  const [showForm, setShowForm] = useState(false);
+  const [filter, setFilter] = useState("All");
+  const [form, setForm] = useState({ title: "", description: "", priority: "Medium", status: "To Do", assignee: "", project: "", dueDate: "" });
+
+  const canAdd = user.role === "pm" || user.role === "leadership";
+  const fullTaskList = useDB("tasks");
+  const allTasksList = fullTaskList ? Object.entries(fullTaskList).map(([k, v]) => ({ id: k, ...v })) : [];
+  const displayTasks = allTasks ? allTasksList : taskList;
+
+  const save = () => {
+    if (!form.title.trim()) return;
+    push(ref(db, "tasks"), { ...form, createdBy: user.name, time: now() });
+    setForm({ title: "", description: "", priority: "Medium", status: "To Do", assignee: "", project: "", dueDate: "" });
+    setShowForm(false);
+  };
+
+  const updateStatus = (id, status) => update(ref(db, `tasks/${id}`), { status });
+  const deleteTask = (id) => remove(ref(db, `tasks/${id}`));
+  const filtered = filter === "All" ? displayTasks : displayTasks.filter(t => t.status === filter || t.priority === filter);
+
+  const cols = ["To Do", "In Progress", "Blocked", "Done"];
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+        <SectionTitle text={allTasks ? "✅ All Tasks" : "✅ My Tasks"} sub={`${displayTasks.filter(t => t.status === "Done").length} of ${displayTasks.length} completed`} grad={G.purple} />
+        {canAdd && <Btn grad={G.purple} onClick={() => setShowForm(!showForm)}>+ New Task</Btn>}
+      </div>
+
+      {showForm && canAdd && (
+        <Card grad={G.purple} style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 16, fontSize: 15 }}>New Task</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Task title *" />
+            <Select value={form.assignee} onChange={e => setForm(f => ({ ...f, assignee: e.target.value }))}>
+              <option value="">Assign to…</option>
+              {USERS.map(u => <option key={u.id} value={u.name}>{u.name}</option>)}
+            </Select>
+            <Select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
+              {["Critical", "High", "Medium", "Low"].map(p => <option key={p}>{p}</option>)}
+            </Select>
+            <Select value={form.project} onChange={e => setForm(f => ({ ...f, project: e.target.value }))}>
+              <option value="">Link to project…</option>
+              {projectList.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </Select>
+            <Input value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))} type="date" />
+          </div>
+          <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Task description" rows={2} style={{ marginTop: 12 }} />
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <Btn grad={G.purple} onClick={save}>Add Task</Btn>
+            <Btn onClick={() => setShowForm(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {/* Kanban Board */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
+        {cols.map(col => {
+          const colTasks = displayTasks.filter(t => t.status === col);
+          const colColor = col === "Done" ? C.green : col === "Blocked" ? C.red : col === "In Progress" ? C.blue : C.muted;
+          return (
+            <div key={col}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: colColor }}>{col}</div>
+                <Badge text={colTasks.length} color={colColor} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {colTasks.map(t => (
+                  <Card key={t.id} style={{ padding: 14, cursor: "default" }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{t.title}</div>
+                    {t.description && <div style={{ color: C.muted, fontSize: 11, marginBottom: 8, lineHeight: 1.4 }}>{t.description}</div>}
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                      <Badge text={t.priority} color={PRIORITY_COLORS[t.priority] || C.muted} />
+                    </div>
+                    {t.assignee && <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>👤 {t.assignee}</div>}
+                    {t.project && <div style={{ fontSize: 11, color: C.cyan, marginBottom: 8 }}>📁 {t.project}</div>}
+                    {t.dueDate && <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>📅 {t.dueDate}</div>}
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <Select value={t.status} onChange={e => updateStatus(t.id, e.target.value)} style={{ flex: 1, padding: "4px 8px", fontSize: 10 }}>
+                        {["To Do", "In Progress", "Blocked", "Done"].map(s => <option key={s}>{s}</option>)}
+                      </Select>
+                      {canAdd && <Btn sm danger onClick={() => deleteTask(t.id)}>✕</Btn>}
+                    </div>
+                  </Card>
+                ))}
+                {colTasks.length === 0 && <div style={{ padding: "20px 0", textAlign: "center", color: C.dim, fontSize: 12, border: `1px dashed ${C.border}`, borderRadius: 12 }}>Empty</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── RESOURCES TAB ────────────────────────────────────────────
+function ResourcesTab({ user, taskList, projectList, capacity }) {
+  const updateCapacity = (userId, val) => set(ref(db, `capacity/${userId}`), Number(val));
+
+  return (
+    <div>
+      <SectionTitle text="👥 Team Resources & Capacity" sub="Workload visibility across all team members" grad={G.green} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
+        {USERS.map(u => {
+          const assigned = taskList.filter(t => t.assignee === u.name);
+          const done = assigned.filter(t => t.status === "Done").length;
+          const inProgress = assigned.filter(t => t.status === "In Progress").length;
+          const blocked = assigned.filter(t => t.status === "Blocked").length;
+          const cap = capacity?.[u.id] ?? 80;
+          const load = assigned.length > 0 ? Math.min(100, Math.round((assigned.length / 8) * 100)) : 0;
+          const loadColor = load >= 90 ? C.red : load >= 70 ? C.orange : C.green;
+          const canEdit = user.role !== "dev";
+
+          return (
+            <Card key={u.id} grad={u.role === "leadership" ? G.purple : u.role === "pm" ? G.blue : G.green}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
+                <Avatar initials={u.avatar} size={42} grad={u.role === "leadership" ? G.purple : u.role === "pm" ? G.blue : G.green} />
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{u.name}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{ROLES[u.role]}</div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+                {[["Total Tasks", assigned.length, C.blue], ["In Progress", inProgress, C.cyan], ["Done", done, C.green], ["Blocked", blocked, C.red]].map(([label, val, col]) => (
+                  <div key={label} style={{ background: C.card2, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Syne',sans-serif", fontSize: 20, fontWeight: 800, color: col }}>{val}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12 }}>
+                  <span style={{ color: C.muted }}>Workload</span>
+                  <span style={{ color: loadColor, fontWeight: 700 }}>{load}%</span>
+                </div>
+                <div style={{ height: 8, background: C.card2, borderRadius: 4, marginBottom: 10 }}>
+                  <div style={{ height: "100%", width: `${load}%`, background: load >= 90 ? G.red : load >= 70 ? G.orange : G.green, borderRadius: 4, transition: "width 0.4s" }} />
+                </div>
+                {canEdit && (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.muted, marginBottom: 4 }}>
+                      <span>Capacity: {cap}%</span>
+                    </div>
+                    <input type="range" min={0} max={100} value={cap} onChange={e => updateCapacity(u.id, e.target.value)} style={{ width: "100%", accentColor: C.teal }} />
+                  </div>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── ANNOUNCEMENTS TAB ────────────────────────────────────────
+function AnnouncementsTab({ user, announcementList }) {
+  const canPost = user.role === "leadership" || user.role === "pm";
+  const [form, setForm] = useState({ title: "", body: "", type: "General" });
+  const [showForm, setShowForm] = useState(false);
+
+  const post = () => {
+    if (!form.title.trim() || !form.body.trim()) return;
+    push(ref(db, "announcements"), { ...form, author: user.name, time: now() });
+    setForm({ title: "", body: "", type: "General" });
+    setShowForm(false);
+  };
+
+  const typeColors = { General: C.blue, Urgent: C.red, Update: C.green, Maintenance: C.orange };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 24 }}>
+        <SectionTitle text="📢 Announcements" sub="Team-wide updates and communications" grad={G.purple} />
+        {canPost && <Btn grad={G.purple} onClick={() => setShowForm(!showForm)}>+ Post Announcement</Btn>}
+      </div>
+
+      {showForm && (
+        <Card grad={G.purple} style={{ marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Title *" />
+            <Select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+              {["General", "Urgent", "Update", "Maintenance"].map(t => <option key={t}>{t}</option>)}
+            </Select>
+          </div>
+          <Input value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} placeholder="Announcement content…" rows={4} />
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <Btn grad={G.purple} onClick={post}>📢 Post to Team</Btn>
+            <Btn onClick={() => setShowForm(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {announcementList.length === 0
+        ? <Card style={{ textAlign: "center", padding: 48 }}><div style={{ fontSize: 40, marginBottom: 12 }}>📢</div><div style={{ color: C.muted }}>No announcements yet.</div></Card>
+        : <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {[...announcementList].reverse().map((a, i) => (
+            <Card key={i} style={{ borderLeft: `3px solid ${typeColors[a.type] || C.blue}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>{a.title}</span>
+                  <Badge text={a.type} color={typeColors[a.type] || C.blue} />
+                </div>
+                <div style={{ fontSize: 11, color: C.muted, textAlign: "right" }}>
+                  <div>{a.author}</div>
+                  <div>{a.time}</div>
+                </div>
+              </div>
+              <p style={{ color: C.muted, fontSize: 14, margin: 0, lineHeight: 1.6 }}>{a.body}</p>
+            </Card>
+          ))}
+        </div>
+      }
+    </div>
+  );
+}
+
+// ── REPORTS TAB ──────────────────────────────────────────────
+function ReportsTab({ projectList, incidentList, taskList }) {
+  const byStatus = (list, key) => {
+    const counts = {};
+    list.forEach(i => { const v = i[key] || "Unknown"; counts[v] = (counts[v] || 0) + 1; });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  };
+
+  const projectsByStatus = byStatus(projectList, "status");
+  const incidentsByPriority = byStatus(incidentList, "priority");
+  const tasksByAssignee = byStatus(taskList, "assignee");
+  const completionRate = taskList.length > 0 ? Math.round((taskList.filter(t => t.status === "Done").length / taskList.length) * 100) : 0;
+
+  const BarChart = ({ data, colorMap, title, grad }) => (
+    <Card grad={grad}>
+      <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 16, fontSize: 15 }}>{title}</div>
+      {data.length === 0 ? <div style={{ color: C.muted, fontSize: 13 }}>No data yet.</div> : (
+        <div>
+          {data.map(([label, count]) => {
+            const max = data[0][1];
+            const color = colorMap?.[label] || C.blue;
+            return (
+              <div key={label} style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 13 }}>
+                  <span style={{ color: C.text }}>{label}</span>
+                  <span style={{ fontWeight: 700, color }}>{count}</span>
+                </div>
+                <div style={{ height: 10, background: C.card2, borderRadius: 5, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${(count / max) * 100}%`, background: `${color}`, borderRadius: 5, transition: "width 0.5s" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+
+  return (
+    <div>
+      <SectionTitle text="📈 Reports & Analytics" sub="Organization-wide metrics and insights" grad={G.green} />
+
+      {/* KPI Row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 16, marginBottom: 24 }}>
+        <StatCard label="Total Projects" value={projectList.length} icon="🚀" grad={G.blue} />
+        <StatCard label="Active Incidents" value={incidentList.filter(i => i.status === "Open").length} icon="🔥" grad={G.red} />
+        <StatCard label="Task Completion" value={`${completionRate}%`} icon="✅" grad={G.green} />
+        <StatCard label="Critical Issues" value={incidentList.filter(i => i.priority === "Critical" && i.status === "Open").length} icon="⚠️" grad={G.orange} />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+        <BarChart data={projectsByStatus} colorMap={STATUS_COLORS} title="📊 Projects by Status" grad={G.blue} />
+        <BarChart data={incidentsByPriority} colorMap={PRIORITY_COLORS} title="🔥 Incidents by Priority" grad={G.red} />
+      </div>
+
+      <Card grad={G.purple}>
+        <div style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, marginBottom: 16, fontSize: 15 }}>👥 Task Distribution by Team Member</div>
+        {tasksByAssignee.length === 0 ? <div style={{ color: C.muted, fontSize: 13 }}>No task data yet.</div> : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
+            {tasksByAssignee.slice(0, 12).map(([name, count]) => {
+              const u = USERS.find(u => u.name === name);
+              return (
+                <div key={name} style={{ background: C.card2, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                  <Avatar initials={u?.avatar || "??"} size={32} grad={G.purple} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                    <div style={{ height: 4, background: C.border, borderRadius: 2, marginTop: 5 }}>
+                      <div style={{ height: "100%", width: `${(count / tasksByAssignee[0][1]) * 100}%`, background: G.purple, borderRadius: 2 }} />
+                    </div>
+                  </div>
+                  <span style={{ fontWeight: 800, color: C.purple, fontFamily: "'Syne',sans-serif", fontSize: 16 }}>{count}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
 }
