@@ -311,7 +311,7 @@ function Login({onLogin}){
             </div>
             {role&&role!=="viewer"&&<div style={{marginBottom:14}}>
               <Inp value={pass} onChange={e=>{setPass(e.target.value);setErr("");}} placeholder="Enter password" type="password"/>
-              <div style={{fontSize:10,color:C.dim,marginTop:5,fontFamily:"monospace"}}>Admin:WLS@ADMIN · Ops:WLS@OPS · Approver:WLS@APPR</div>
+              <div style={{fontSize:10,color:C.dim,marginTop:5,fontFamily:"monospace"}}>Contact your system administrator for access credentials.</div>
             </div>}
             {err&&<div style={{color:C.danger,fontSize:12,marginBottom:10}}>⚠ {err}</div>}
             <Btn grad={G.oci} color={C.red} onClick={login} style={{width:"100%",padding:12}}>🔐 Sign In to OCI Control</Btn>
