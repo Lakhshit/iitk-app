@@ -1538,7 +1538,11 @@ function OnCallTab({C,user}){
             <div style={{fontSize:12,color:C.muted}}>📧 {primary.email}</div>
             <div style={{fontSize:12,color:C.muted}}>📱 {primary.phone}</div>
           </div>
-          <div style={{display:"flex",gap:10}}><Btn grad={G.green} sm C={C}>📞 Call Now</Btn><Btn color={C.blue} sm C={C}>💬 Message</Btn><Btn color={C.purple} sm C={C}>📧 Email</Btn></div>
+          <div style={{display:"flex",gap:10}}>
+            <a href={`tel:${primary.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none"}}><Btn grad={G.green} sm C={C}>📞 Call Now</Btn></a>
+            <a href={`sms:${primary.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none"}}><Btn color={C.blue} sm C={C}>💬 Message</Btn></a>
+            <a href={`mailto:${primary.email}`} style={{textDecoration:"none"}}><Btn color={C.purple} sm C={C}>📧 Email</Btn></a>
+          </div>
         </GlowCard>
       )}
       <GlowCard color={C.blue} C={C}>
@@ -1549,6 +1553,11 @@ function OnCallTab({C,user}){
             <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:14,color:C.text}}>{r.name}</div>
               <div style={{fontSize:11,color:C.muted}}>{r.role} · {r.phone}</div>
+            </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <a href={`tel:${r.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none",padding:"4px 10px",background:`${C.green}20`,border:`1px solid ${C.green}44`,borderRadius:8,color:C.green,fontSize:11,fontWeight:700,cursor:"pointer"}}>📞</a>
+              <a href={`sms:${r.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none",padding:"4px 10px",background:`${C.blue}20`,border:`1px solid ${C.blue}44`,borderRadius:8,color:C.blue,fontSize:11,fontWeight:700,cursor:"pointer"}}>💬</a>
+              <a href={`mailto:${r.email}`} style={{textDecoration:"none",padding:"4px 10px",background:`${C.purple}20`,border:`1px solid ${C.purple}44`,borderRadius:8,color:C.purple,fontSize:11,fontWeight:700,cursor:"pointer"}}>📧</a>
             </div>
             <div onClick={()=>setRoster(p=>p.map(x=>x.id===r.id?{...x,available:!x.available}:x))} style={{width:38,height:20,borderRadius:10,background:r.available?C.green:C.dim,cursor:"pointer",position:"relative",transition:"all .3s",flexShrink:0}}>
               <div style={{position:"absolute",top:2,left:r.available?19:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .3s"}}/>
