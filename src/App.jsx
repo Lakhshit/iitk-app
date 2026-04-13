@@ -565,67 +565,184 @@ function MainApp({user,onLogout,isDark,toggleTheme}){
   );
 }
 
-// ── CHATBOT PANEL ──────────────────────────────────────────
+// ── SMART LOCAL CHATBOT ────────────────────────────────────
 function ChatbotPanel({onClose,C,wlsServers,compute,databases,incidentList}){
-  const [messages,setMessages]=useState([{role:"assistant",content:"👋 Hi! I'm your OCI Assistant. Ask me anything about your infrastructure — server status, incidents, performance, recommendations and more!"}]);
+  const [messages,setMessages]=useState([{role:"assistant",content:"👋 Hi! I'm your OCI Assistant. I can answer questions about your live infrastructure — server status, incidents, performance issues, recommendations and more! Try asking me something below."}]);
   const [input,setInput]=useState("");
-  const [loading,setLoading]=useState(false);
+  const [typing,setTyping]=useState(false);
   const msgRef=useRef(null);
   useEffect(()=>{if(msgRef.current)msgRef.current.scrollTop=msgRef.current.scrollHeight;},[messages]);
 
-  const getContext=()=>{
-    const critical=wlsServers.filter(s=>s.status==="CRITICAL").map(s=>`${s.name}(CPU:${s.cpu}%,JVM:${s.jvmHeap}%)`).join(", ");
-    const warning=wlsServers.filter(s=>s.status==="WARNING").map(s=>s.name).join(", ");
-    const openInc=incidentList.filter(i=>i.status==="OPEN").length;
-    return `You are an OCI (Oracle Cloud Infrastructure) expert assistant for GSC (Global Service Centre). 
-Current infrastructure status:
-- WebLogic servers: ${wlsServers.length} total, ${wlsServers.filter(s=>s.status==="RUNNING").length} running, ${wlsServers.filter(s=>s.status==="CRITICAL").length} critical
-- Critical servers: ${critical||"None"}
-- Warning servers: ${warning||"None"}  
-- Compute instances: ${compute.filter(c=>c.status==="RUNNING").length}/${compute.length} running
-- Databases: ${databases.length} available
-- Open incidents: ${openInc}
-- Average WLS CPU: ${Math.round(wlsServers.reduce((a,s)=>a+s.cpu,0)/wlsServers.length)}%
-- Average JVM Heap: ${Math.round(wlsServers.reduce((a,s)=>a+s.jvmHeap,0)/wlsServers.length)}%
-Be concise, technical and helpful. Provide actionable recommendations.`;
-  };
+  const buildAnswer=(q)=>{
+    const ql=q.toLowerCase();
+    const critical=wlsServers.filter(s=>s.status==="CRITICAL");
+    const warning=wlsServers.filter(s=>s.status==="WARNING");
+    const running=wlsServers.filter(s=>s.status==="RUNNING");
+    const stopped=wlsServers.filter(s=>s.status==="STOPPED");
+    const avgCpu=Math.round(wlsServers.reduce((a,s)=>a+s.cpu,0)/wlsServers.length);
+    const avgJvm=Math.round(wlsServers.reduce((a,s)=>a+s.jvmHeap,0)/wlsServers.length);
+    const openInc=incidentList.filter(i=>i.status==="OPEN"||i.status==="ACKNOWLEDGED");
+    const compRunning=compute.filter(c=>c.status==="RUNNING");
 
-  const send=async()=>{
-    if(!input.trim()||loading)return;
-    const userMsg={role:"user",content:input};
-    setMessages(prev=>[...prev,userMsg]);
-    setInput("");
-    setLoading(true);
-    try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:500,
-          system:getContext(),
-          messages:[...messages.filter(m=>m.role!=="assistant"||messages.indexOf(m)>0),userMsg].map(m=>({role:m.role,content:m.content}))
-        })
-      });
-      const data=await res.json();
-      const reply=data.content?.[0]?.text||"Sorry, I couldn't process that.";
-      setMessages(prev=>[...prev,{role:"assistant",content:reply}]);
-    }catch(e){
-      setMessages(prev=>[...prev,{role:"assistant",content:"⚠️ I'm having trouble connecting. Please check your network and try again."}]);
+    // Status queries
+    if(ql.includes("status")||ql.includes("all server")||ql.includes("overview")){
+      let msg=`📊 **Infrastructure Status**\n\n**WebLogic Servers (${wlsServers.length} total):**\n`;
+      wlsServers.forEach(s=>msg+=`• ${s.name} — ${s.status} | CPU:${s.cpu}% | JVM:${s.jvmHeap}% | MEM:${s.mem}%\n`);
+      msg+=`\n**Compute:** ${compRunning.length}/${compute.length} running`;
+      msg+=`\n**Databases:** ${databases.filter(d=>d.status==="AVAILABLE").length}/${databases.length} available`;
+      msg+=`\n**Open Incidents:** ${openInc.length}`;
+      return msg;
     }
-    setLoading(false);
+
+    // Critical/attention queries
+    if(ql.includes("critical")||ql.includes("attention")||ql.includes("problem")||ql.includes("issue")||ql.includes("urgent")){
+      if(critical.length===0&&warning.length===0)return "✅ Good news! All WebLogic servers are healthy. No critical or warning states detected right now.";
+      let msg="🚨 **Servers Needing Attention:**\n\n";
+      critical.forEach(s=>{
+        msg+=`🔴 **${s.name}** — CRITICAL\n`;
+        if(s.cpu>=92)msg+=`  • CPU at ${s.cpu}% — dangerously high\n`;
+        if(s.jvmHeap>=95)msg+=`  • JVM Heap at ${s.jvmHeap}% — OutOfMemoryError risk!\n`;
+        if(s.mem>=95)msg+=`  • Memory at ${s.mem}% — critical\n`;
+        msg+=`  • Recommended: Immediate restart or heap increase\n\n`;
+      });
+      warning.forEach(s=>{
+        msg+=`⚠️ **${s.name}** — WARNING\n`;
+        if(s.cpu>=75)msg+=`  • CPU at ${s.cpu}%\n`;
+        if(s.jvmHeap>=82)msg+=`  • JVM Heap at ${s.jvmHeap}%\n`;
+        msg+=`  • Recommended: Monitor closely, consider restart\n\n`;
+      });
+      return msg;
+    }
+
+    // JVM / heap queries
+    if(ql.includes("jvm")||ql.includes("heap")||ql.includes("memory leak")||ql.includes("outofmemory")){
+      const highJvm=wlsServers.filter(s=>s.jvmHeap>80).sort((a,b)=>b.jvmHeap-a.jvmHeap);
+      if(highJvm.length===0)return "✅ All JVM Heap levels are healthy (below 80%). No action needed.";
+      let msg=`💾 **JVM Heap Analysis:**\n\nAverage Heap: ${avgJvm}%\n\n`;
+      highJvm.forEach(s=>msg+=`• ${s.name}: ${s.jvmHeap}% heap | GC Time: ${s.gcTime}ms\n`);
+      msg+=`\n**Recommendations:**\n`;
+      msg+=`• Increase -Xmx to 4GB for servers >90% heap\n`;
+      msg+=`• Switch to G1GC: -XX:+UseG1GC -XX:MaxGCPauseMillis=200\n`;
+      msg+=`• Review session timeout settings\n`;
+      msg+=`• Consider adding a new managed server (WLS-PROD-05) for load balancing`;
+      return msg;
+    }
+
+    // CPU queries
+    if(ql.includes("cpu")||ql.includes("processor")||ql.includes("performance")){
+      const highCpu=wlsServers.filter(s=>s.cpu>70).sort((a,b)=>b.cpu-a.cpu);
+      let msg=`⚡ **CPU Performance Analysis:**\n\nAverage CPU: ${avgCpu}%\n\n`;
+      if(highCpu.length===0){msg+="✅ All servers have healthy CPU utilization below 70%.";return msg;}
+      highCpu.forEach(s=>msg+=`• ${s.name}: ${s.cpu}% CPU | Threads: ${s.threads}/${s.maxThreads}\n`);
+      msg+=`\n**Recommendations:**\n`;
+      msg+=`• Profile hot methods using JVM profiler\n`;
+      msg+=`• Review thread pool configuration\n`;
+      msg+=`• Check for synchronization bottlenecks\n`;
+      msg+=`• Consider increasing maxThreads for high-load servers`;
+      return msg;
+    }
+
+    // Incident queries
+    if(ql.includes("incident")||ql.includes("p1")||ql.includes("p2")||ql.includes("ticket")){
+      if(openInc.length===0)return "✅ No open incidents right now. All incidents are resolved or closed.";
+      let msg=`🚨 **Open Incidents (${openInc.length}):**\n\n`;
+      openInc.forEach(i=>msg+=`• [${i.priority}] ${i.title||"Untitled"} — ${i.status}\n  Assigned: ${i.assignee||"Unassigned"}\n\n`);
+      msg+=`**Note:** P1 incidents have a 1-hour SLA, P2 = 4 hours, P3 = 8 hours.`;
+      return msg;
+    }
+
+    // DR queries
+    if(ql.includes("dr")||ql.includes("disaster")||ql.includes("failover")||ql.includes("rto")||ql.includes("rpo")){
+      return `🔁 **DR Readiness Status:**\n\n• DR Score: 87.5% (7/8 checks passing)\n• RTO: ~15 minutes\n• RPO: ~5 minutes\n• DR-ADB-01: Synchronized (lag: 2s)\n• WLS-DR-01: STANDBY mode — ready\n• DR-VCN: IPSec tunnel active\n\n⚠️ **Action needed:** Update runbook — last updated 3 months ago.\n\n**To initiate failover:** Go to DR Readiness tab → Run DR Test to validate.`;
+    }
+
+    // Cost queries
+    if(ql.includes("cost")||ql.includes("budget")||ql.includes("spend")||ql.includes("billing")){
+      return `💰 **Cost Summary:**\n\n• Month Budget: ₹1,50,000\n• Month Spend: ₹98,420 (65.6% used)\n• Last Month: ₹1,02,300\n• Forecast: ₹1,12,000\n\n**Top cost drivers:**\n• Compute: ₹42,000 (43%)\n• Autonomous DB: ₹28,000 (28%)\n• Kubernetes: ₹7,800 (8%)\n\n✅ Currently under budget. Forecasted to save ~₹38,000 vs budget.`;
+    }
+
+    // Thread queries
+    if(ql.includes("thread")||ql.includes("deadlock")||ql.includes("stuck")){
+      const highThreads=wlsServers.filter(s=>s.threads/s.maxThreads>0.8).sort((a,b)=>(b.threads/b.maxThreads)-(a.threads/a.maxThreads));
+      if(highThreads.length===0)return "✅ All thread pools are healthy. No thread starvation detected.";
+      let msg="🧵 **Thread Pool Analysis:**\n\n";
+      highThreads.forEach(s=>msg+=`• ${s.name}: ${s.threads}/${s.maxThreads} threads (${Math.round(s.threads/s.maxThreads*100)}%)\n`);
+      msg+=`\n**Recommendations:**\n• Take thread dump: Operations tab → THREADDUMP\n• Look for BLOCKED threads in the dump\n• Review DB connection pool size\n• Add timeout to long-running transactions\n• Consider increasing maxThreads to 300`;
+      return msg;
+    }
+
+    // Compute queries
+    if(ql.includes("compute")||ql.includes("vm")||ql.includes("instance")){
+      let msg=`💻 **Compute Instances (${compute.length} total):**\n\n`;
+      compute.forEach(c=>msg+=`• ${c.name} [${c.status}] — ${c.role}\n  ${c.shape} | CPU:${c.cpu}% | MEM:${c.mem}%\n\n`);
+      return msg;
+    }
+
+    // Database queries
+    if(ql.includes("database")||ql.includes("adb")||ql.includes("atp")||ql.includes("adw")||ql.includes("connection")){
+      let msg=`🗄️ **Database Status:**\n\n`;
+      databases.forEach(d=>msg+=`• ${d.name} [${d.status}]\n  Type: ${d.type} | CPU:${d.cpu}% | Connections:${d.connections}/${d.maxConns}\n\n`);
+      msg+=`**Tip:** If connections are above 80%, consider increasing OCPU or optimizing connection pooling.`;
+      return msg;
+    }
+
+    // Recommendation queries
+    if(ql.includes("recommend")||ql.includes("fix")||ql.includes("suggest")||ql.includes("what should")||ql.includes("how to")){
+      let msg="💡 **Top Recommendations Right Now:**\n\n";
+      let count=1;
+      critical.forEach(s=>{msg+=`${count++}. 🔴 Restart ${s.name} — CPU:${s.cpu}% JVM:${s.jvmHeap}% (CRITICAL)\n`;});
+      warning.forEach(s=>{msg+=`${count++}. ⚠️ Monitor ${s.name} closely — CPU:${s.cpu}% JVM:${s.jvmHeap}%\n`;});
+      if(avgJvm>75)msg+=`${count++}. 💾 Increase JVM heap on all production servers to -Xmx4g\n`;
+      if(avgCpu>65)msg+=`${count++}. ⚡ Review thread pool sizes across production servers\n`;
+      msg+=`${count++}. 📦 Apply pending critical security patches (CVE-2024-20918)\n`;
+      msg+=`${count++}. 📋 Update DR runbook — currently outdated\n`;
+      if(count===1)msg+="✅ Infrastructure looks healthy! Keep monitoring.";
+      return msg;
+    }
+
+    // Help query
+    if(ql.includes("help")||ql.includes("what can")||ql.includes("commands")){
+      return `🤖 **I can help you with:**\n\n• "What's the status of all servers?"\n• "Which servers need attention?"\n• "Analyze JVM heap issues"\n• "Show CPU performance"\n• "What are open incidents?"\n• "DR readiness status"\n• "Cost and budget summary"\n• "Thread pool analysis"\n• "Database connection status"\n• "Give me recommendations"\n• "How to fix high CPU?"\n\nJust ask in plain English! 😊`;
+    }
+
+    // Restart/operation queries
+    if(ql.includes("restart")||ql.includes("stop")||ql.includes("start")){
+      return `⚙️ **To restart/stop/start a server:**\n\n1. Go to the **WebLogic** tab\n2. Click on the server card\n3. Click **RESTART**, **STOP** or **START**\n4. Fill in the reason form\n\n**Or** go to **Operations** tab to submit for any resource.\n\n⚠️ Note: OPS Engineers need Change Approver sign-off. Admins can execute directly.`;
+    }
+
+    // Uptime / SLA
+    if(ql.includes("uptime")||ql.includes("sla")||ql.includes("availability")){
+      return `⏱️ **SLA & Uptime Summary:**\n\n• WLS-PROD-01: 99.97% ✅ MET\n• WLS-PROD-02: 99.94% ✅ MET\n• WLS-PROD-03: 99.75% ⚠️ AT RISK\n• WLS-PROD-04: 99.45% 🔴 BREACHED\n• PROD-ADB-01: 99.99% ✅ MET\n\n**Overall:** 99.84% average uptime this month\n\nView full details in the **SLA & Uptime** tab.`;
+    }
+
+    // Default fallback
+    return `🤖 I'm not sure about that specific query. Here are things I can help with:\n\n• Server status & health\n• JVM heap & performance analysis\n• Incident management\n• DR readiness\n• Cost & budget\n• Recommendations & fixes\n\nTry asking: "Which servers need attention?" or "Give me recommendations"`;
   };
 
-  const quickQuestions=["What's the current status of all servers?","Which servers need immediate attention?","Recommend fixes for high JVM heap","Show me open incidents","What is the DR readiness status?"];
+  const send=()=>{
+    if(!input.trim()||typing)return;
+    const q=input.trim();
+    setMessages(prev=>[...prev,{role:"user",content:q}]);
+    setInput("");
+    setTyping(true);
+    // Simulate typing delay for natural feel
+    setTimeout(()=>{
+      const answer=buildAnswer(q);
+      setMessages(prev=>[...prev,{role:"assistant",content:answer}]);
+      setTyping(false);
+    },600+Math.random()*400);
+  };
+
+  const quickQuestions=["Which servers need attention?","Analyze JVM heap issues","Show open incidents","Give me recommendations","DR readiness status"];
 
   return (
-    <div style={{position:"fixed",bottom:90,right:24,zIndex:999,width:380,height:520,background:C.card,border:`1px solid ${C.purple}44`,borderRadius:20,boxShadow:`0 8px 40px ${C.purple}30`,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{background:G.purple,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{position:"fixed",bottom:90,right:24,zIndex:999,width:380,height:540,background:C.card,border:`1px solid ${C.purple}44`,borderRadius:20,boxShadow:`0 8px 40px ${C.purple}30`,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{background:G.purple,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:20}}>🤖</span>
           <div>
             <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"#fff"}}>OCI Assistant</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.7)"}}>Powered by AI · GSC Infrastructure Expert</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.7)"}}>Live infrastructure analysis · Always online</div>
           </div>
         </div>
         <button onClick={onClose} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",color:"#fff",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
@@ -634,23 +751,31 @@ Be concise, technical and helpful. Provide actionable recommendations.`;
       <div ref={msgRef} style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
         {messages.map((m,i)=>(
           <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-            <div style={{maxWidth:"85%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?G.purple:C.card2,color:m.role==="user"?"#fff":C.text,fontSize:13,lineHeight:1.5,border:m.role==="user"?"none":`1px solid ${C.border}`}}>
+            <div style={{maxWidth:"90%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?G.purple:C.card2,color:m.role==="user"?"#fff":C.text,fontSize:12,lineHeight:1.6,border:m.role==="user"?"none":`1px solid ${C.border}`,whiteSpace:"pre-line"}}>
               {m.content}
             </div>
           </div>
         ))}
-        {loading&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{padding:"10px 14px",borderRadius:"16px 16px 16px 4px",background:C.card2,border:`1px solid ${C.border}`,fontSize:13,color:C.muted}}>🤖 Thinking...</div></div>}
+        {typing&&(
+          <div style={{display:"flex",justifyContent:"flex-start"}}>
+            <div style={{padding:"10px 16px",borderRadius:"16px 16px 16px 4px",background:C.card2,border:`1px solid ${C.border}`,fontSize:13,color:C.muted,display:"flex",gap:4,alignItems:"center"}}>
+              <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.purple,animation:"blink .7s ease infinite"}}/>
+              <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.purple,animation:"blink .7s ease .2s infinite"}}/>
+              <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.purple,animation:"blink .7s ease .4s infinite"}}/>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div style={{padding:"8px 12px",borderTop:`1px solid ${C.border}`}}>
-        <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-          {quickQuestions.slice(0,3).map(q=>(
-            <button key={q} onClick={()=>{setInput(q);}} style={{padding:"3px 10px",background:`${C.purple}15`,border:`1px solid ${C.purple}33`,borderRadius:20,color:C.purple,fontSize:10,cursor:"pointer",fontWeight:600}}>{q.slice(0,25)}...</button>
+      <div style={{padding:"8px 12px",borderTop:`1px solid ${C.border}`,flexShrink:0}}>
+        <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
+          {quickQuestions.map(q=>(
+            <button key={q} onClick={()=>setInput(q)} style={{padding:"3px 9px",background:`${C.purple}15`,border:`1px solid ${C.purple}33`,borderRadius:20,color:C.purple,fontSize:10,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>{q.slice(0,22)}…</button>
           ))}
         </div>
         <div style={{display:"flex",gap:8}}>
           <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask about your infrastructure..." style={{flex:1,padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          <button onClick={send} disabled={loading||!input.trim()} style={{padding:"9px 14px",background:G.purple,border:"none",borderRadius:10,color:"#fff",cursor:loading?"not-allowed":"pointer",fontWeight:700,fontSize:13,opacity:loading||!input.trim()?0.5:1}}>Send</button>
+          <button onClick={send} disabled={typing||!input.trim()} style={{padding:"9px 16px",background:G.purple,border:"none",borderRadius:10,color:"#fff",cursor:typing?"not-allowed":"pointer",fontWeight:700,fontSize:13,opacity:typing||!input.trim()?0.5:1}}>Send</button>
         </div>
       </div>
     </div>
