@@ -17,7 +17,7 @@ const db = getDatabase(app);
 
 // ─── WLS Proxy Config ──────────────────────────────────────────────────────
 // Change this to your proxy URL. In Vercel, set env var REACT_APP_WLS_PROXY_URL
-const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "https://clapped-electable-clubbing.ngrok-free.dev";
+const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "http://localhost:3001";
 
 // ─── EmailJS ───────────────────────────────────────────────────────────────
 const EMAILJS_SERVICE_ID  = "YOUR_SERVICE_ID";
@@ -386,8 +386,19 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
   const loadRealDeployments = async()=>{
     try {
       const data=await wlsApi.get("/api/deployments");
-      if(data.deployments?.length) setDeployments(data.deployments);
-    } catch(e){}
+      if(data.deployments?.length) {
+        const normalized=data.deployments.map(d=>({
+          ...d,
+          name: d.name||"unknown",
+          state: d.state==="UNKNOWN"?(d.active===true?"ACTIVE":"PREPARED"):(d.state||"ACTIVE"),
+          type: d.type==="AppDeployment"?"WAR":(d.type||"WAR"),
+          targets: Array.isArray(d.targets)?d.targets.map(t=>typeof t==="string"?t:t.name||"AdminServer"):["AdminServer"],
+          version: d.version||"1.0",
+          health: d.health||"OK",
+        }));
+        setDeployments(normalized);
+      }
+    } catch(e){ console.warn("Deployments load failed:",e.message); }
   };
 
   // ─── Live metrics poll (real or simulated) ────────────────────────────────
