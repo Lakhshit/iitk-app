@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, push, update, remove } from "firebase/database";
+import { getDatabase, ref, onValue, push, update, remove } from "firebase/database";
 
+// ─── Firebase ──────────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyD8flQKhye0ux5W-rw7LIjHdZt3ZkoroHg",
   authDomain: "oci-team-hub.firebaseapp.com",
@@ -14,2017 +15,1876 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// ── EmailJS Config ─────────────────────────────────────────
-// Sign up free at emailjs.com, create a service + template, paste IDs below
-const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID";
-const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
-const EMAILJS_PUBLIC_KEY = "YOUR_PUBLIC_KEY";
-const ALERT_EMAIL = "your-team@gscoci.in"; // Change to your team email
+// ─── WLS Proxy Config ──────────────────────────────────────────────────────
+// Change this to your proxy URL. In Vercel, set env var REACT_APP_WLS_PROXY_URL
+const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "http://localhost:3001";
 
-// ── Theme ──────────────────────────────────────────────────
+// ─── EmailJS ───────────────────────────────────────────────────────────────
+const EMAILJS_SERVICE_ID  = "YOUR_SERVICE_ID";
+const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
+const EMAILJS_PUBLIC_KEY  = "YOUR_PUBLIC_KEY";
+const ALERT_EMAIL         = "your-team@gscoci.in";
+
+// ─── Theme ─────────────────────────────────────────────────────────────────
 const DARK = {
-  bg:"#060910",card:"#0a0f1a",card2:"#0f1520",border:"#1a2540",
-  red:"#C74634",blue:"#1e90ff",cyan:"#00d4ff",green:"#00e676",
-  orange:"#ff9100",purple:"#d500f9",teal:"#1de9b6",yellow:"#ffd600",
-  text:"#e8eef8",muted:"#4a6080",dim:"#2a3a50",
-  danger:"#ff1744",warning:"#ff9100",success:"#00e676",info:"#00d4ff",
-  shadow:"rgba(0,0,0,0.5)",headerBg:"linear-gradient(180deg,#0a0f1a,#060910)",
+  bg:"#0a0a0a",card:"#111111",card2:"#161616",border:"#2a2a2a",
+  red:"#C74634",red2:"#8B1A10",blue:"#1a6fde",cyan:"#00a8e8",
+  green:"#1a8a1a",orange:"#d95f00",purple:"#6941C6",teal:"#0d7377",
+  yellow:"#b45309",text:"#f0f0f0",muted:"#666666",dim:"#333333",
+  danger:"#C74634",warning:"#d95f00",success:"#1a8a1a",info:"#1a6fde",
+  shadow:"rgba(0,0,0,0.6)",headerBg:"#1a1a1a",accent:"#C74634",
 };
 const LIGHT = {
-  bg:"#f0f4f8",card:"#ffffff",card2:"#f8fafc",border:"#e2e8f0",
-  red:"#C74634",blue:"#1a56a0",cyan:"#0891b2",green:"#059669",
-  orange:"#ea580c",purple:"#7c3aed",teal:"#0d9488",yellow:"#d97706",
-  text:"#1e293b",muted:"#64748b",dim:"#cbd5e1",
-  danger:"#dc2626",warning:"#d97706",success:"#059669",info:"#0891b2",
-  shadow:"rgba(0,0,0,0.1)",headerBg:"linear-gradient(180deg,#1e293b,#0f172a)",
+  bg:"#f5f5f5",card:"#ffffff",card2:"#fafafa",border:"#e0e0e0",
+  red:"#C74634",red2:"#8B1A10",blue:"#1a6fde",cyan:"#0077b6",
+  green:"#1a6b1a",orange:"#c05000",purple:"#5b21b6",teal:"#0a6367",
+  yellow:"#92400e",text:"#1a1a1a",muted:"#666666",dim:"#dddddd",
+  danger:"#C74634",warning:"#c05000",success:"#1a6b1a",info:"#1a6fde",
+  shadow:"rgba(0,0,0,0.15)",headerBg:"#C74634",accent:"#C74634",
 };
 
-const G = {
-  red:"linear-gradient(135deg,#C74634,#8B1A10)",
-  blue:"linear-gradient(135deg,#1e90ff,#00d4ff)",
-  green:"linear-gradient(135deg,#00e676,#00a152)",
-  orange:"linear-gradient(135deg,#ff9100,#C74634)",
-  purple:"linear-gradient(135deg,#d500f9,#1e90ff)",
-  teal:"linear-gradient(135deg,#1de9b6,#00d4ff)",
-  oci:"linear-gradient(135deg,#C74634,#1a4e8c)",
-};
+// ─── Helpers ───────────────────────────────────────────────────────────────
+const nowStr  = () => new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const fmtUp   = (s) => { const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60); return d+"d "+h+"h "+m+"m"; };
+const fmtSize = (bytes) => { if(!bytes) return "0B"; const k=1024,s=["B","KB","MB","GB","TB"]; const i=Math.floor(Math.log(bytes)/Math.log(k)); return (bytes/Math.pow(k,i)).toFixed(1)+s[i]; };
+const scol    = (s,C) => ({RUNNING:C.green,AVAILABLE:C.green,ACTIVE:C.green,SUCCESS:C.green,HEALTHY:C.green,WARNING:C.warning,CRITICAL:C.danger,STOPPED:C.muted,STANDBY:C.cyan,STARTING:C.blue,STOPPING:C.orange,RESTARTING:C.purple,FAILED:C.danger,IN_PROGRESS:C.blue,PENDING:C.warning,OPEN:C.danger,ACKNOWLEDGED:C.warning,RESOLVED:C.green,CLOSED:C.muted,SCHEDULED:C.blue,COMPLETED:C.green,TERMINATED:C.muted,SHUTDOWN:C.muted,ADMIN:C.purple,UNKNOWN:C.muted}[s]||C.muted);
+const drift   = (v,r,mn,mx) => Math.min(mx,Math.max(mn,v+(Math.random()-.5)*r));
 
-// ── Seed Data ─────────────────────────────────────────────
-const WLS_SERVERS = [
-  {id:"wls1",name:"WLS-PROD-01",env:"Production",host:"prod-wls-01.gscoci.in",port:7001,cpu:42,mem:68,threads:120,maxThreads:200,jvmHeap:72,gcTime:12,datasources:4,deployments:8,version:"14.1.1.0",uptimeSecs:3934200},
-  {id:"wls2",name:"WLS-PROD-02",env:"Production",host:"prod-wls-02.gscoci.in",port:7001,cpu:38,mem:61,threads:98,maxThreads:200,jvmHeap:65,gcTime:8,datasources:4,deployments:8,version:"14.1.1.0",uptimeSecs:3934200},
-  {id:"wls3",name:"WLS-PROD-03",env:"Production",host:"prod-wls-03.gscoci.in",port:7001,cpu:78,mem:87,threads:185,maxThreads:200,jvmHeap:89,gcTime:45,datasources:4,deployments:8,version:"14.1.1.0",uptimeSecs:1039800},
-  {id:"wls4",name:"WLS-PROD-04",env:"Production",host:"prod-wls-04.gscoci.in",port:7001,cpu:94,mem:96,threads:198,maxThreads:200,jvmHeap:98,gcTime:120,datasources:2,deployments:8,version:"14.1.1.0",uptimeSecs:177900},
-  {id:"wls5",name:"WLS-UAT-01",env:"UAT",host:"uat-wls-01.gscoci.in",port:7001,cpu:25,mem:45,threads:60,maxThreads:150,jvmHeap:50,gcTime:5,datasources:3,deployments:5,version:"14.1.1.0",uptimeSecs:467200},
-  {id:"wls6",name:"WLS-DR-01",env:"DR",host:"dr-wls-01.gscoci.in",port:7001,cpu:5,mem:20,threads:10,maxThreads:200,jvmHeap:30,gcTime:2,datasources:4,deployments:8,version:"14.1.1.0",uptimeSecs:7776000},
-  {id:"wls7",name:"WLS-ADMIN",env:"Production",host:"prod-wls-admin.gscoci.in",port:7001,cpu:15,mem:35,threads:40,maxThreads:100,jvmHeap:40,gcTime:3,datasources:2,deployments:3,version:"14.1.1.0",uptimeSecs:3934200},
-];
+const PASSWORDS = { admin:"WLS@ADMIN", operator:"WLS@OPS", approver:"WLS@APPR" };
 
-const OCI_COMPUTE = [
-  {id:"c1",name:"prod-app-01",shape:"VM.Standard3.Flex",ocpu:8,ram:128,os:"Oracle Linux 8",region:"ap-mumbai-1",ad:"AD-1",status:"RUNNING",cpu:65,mem:72,uptimeSecs:2592000,role:"App Server"},
-  {id:"c2",name:"prod-app-02",shape:"VM.Standard3.Flex",ocpu:8,ram:128,os:"Oracle Linux 8",region:"ap-mumbai-1",ad:"AD-2",status:"RUNNING",cpu:58,mem:68,uptimeSecs:2592000,role:"App Server"},
-  {id:"c3",name:"prod-db-01",shape:"VM.Standard.E4.Flex",ocpu:16,ram:256,os:"Oracle Linux 8",region:"ap-mumbai-1",ad:"AD-1",status:"RUNNING",cpu:35,mem:55,uptimeSecs:5184000,role:"DB Server"},
-  {id:"c4",name:"prod-lb-01",shape:"VM.Standard3.Flex",ocpu:4,ram:64,os:"Oracle Linux 8",region:"ap-mumbai-1",ad:"AD-1",status:"RUNNING",cpu:22,mem:38,uptimeSecs:5184000,role:"Load Balancer"},
-  {id:"c5",name:"dr-app-01",shape:"VM.Standard3.Flex",ocpu:8,ram:128,os:"Oracle Linux 8",region:"ap-hyderabad-1",ad:"AD-1",status:"STOPPED",cpu:0,mem:0,uptimeSecs:0,role:"DR App"},
-  {id:"c6",name:"bastion-01",shape:"VM.Standard.E3.Flex",ocpu:2,ram:16,os:"Oracle Linux 8",region:"ap-mumbai-1",ad:"AD-1",status:"RUNNING",cpu:5,mem:12,uptimeSecs:7776000,role:"Bastion"},
-];
-
-const OCI_DATABASES = [
-  {id:"db1",name:"PROD-ADB-01",type:"ATP",ocpu:4,region:"ap-mumbai-1",status:"AVAILABLE",cpu:45,connections:128,maxConns:300,version:"19c",uptimeSecs:5184000,size:"2TB"},
-  {id:"db2",name:"PROD-ADB-02",type:"ADW",ocpu:8,region:"ap-mumbai-1",status:"AVAILABLE",cpu:32,connections:64,maxConns:200,version:"19c",uptimeSecs:5184000,size:"5TB"},
-  {id:"db3",name:"DR-ADB-01",type:"ATP",ocpu:4,region:"ap-hyderabad-1",status:"AVAILABLE",cpu:5,connections:10,maxConns:300,version:"19c",uptimeSecs:7776000,size:"2TB"},
-];
-
-const OCI_LB = [
-  {id:"lb1",name:"PROD-LB-PUBLIC",type:"Flexible",region:"ap-mumbai-1",ip:"152.67.x.x",status:"ACTIVE",backends:4,healthyBackends:3,protocol:"HTTPS",port:443,rps:1250,bw:245},
-  {id:"lb2",name:"PROD-LB-INTERNAL",type:"Network",region:"ap-mumbai-1",ip:"10.0.0.20",status:"ACTIVE",backends:4,healthyBackends:4,protocol:"TCP",port:7001,rps:890,bw:180},
-];
-
-const INIT_PATCHES = [
-  {id:"p1",name:"Oracle JDK 17.0.10",server:"ALL WLS",priority:"Critical",status:"PENDING",releaseDate:"2024-01-15",cve:"CVE-2024-20918",impact:"Security"},
-  {id:"p2",name:"WebLogic 14.1.1 Patch Set",server:"ALL WLS",priority:"High",status:"SCHEDULED",releaseDate:"2024-01-20",cve:"CVE-2024-21006",impact:"Security+Performance"},
-  {id:"p3",name:"Oracle Linux 8.9 Update",server:"ALL Compute",priority:"Medium",status:"COMPLETED",releaseDate:"2024-01-10",cve:"N/A",impact:"OS Security"},
-  {id:"p4",name:"OCI CLI v3.36.0",server:"Bastion",priority:"Low",status:"COMPLETED",releaseDate:"2024-01-08",cve:"N/A",impact:"Tooling"},
-  {id:"p5",name:"ADB Maintenance Update",server:"PROD-ADB-01",priority:"High",status:"PENDING",releaseDate:"2024-01-25",cve:"N/A",impact:"Database"},
-];
-
-const PASSWORDS = {admin:"WLS@ADMIN",operator:"WLS@OPS",approver:"WLS@APPR"};
-const ROLES = {admin:"System Admin",operator:"OPS Engineer",approver:"Change Approver",viewer:"Viewer"};
-const now = () => new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",second:"2-digit"});
-const fmtUptime = (s) => {const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);return`${d}d ${h}h ${m}m`;};
-const statusColor = (s,C) => ({RUNNING:C.green,AVAILABLE:C.green,ACTIVE:C.green,SUCCESS:C.green,WARNING:C.warning,CRITICAL:C.danger,STOPPED:C.muted,STANDBY:C.cyan,STARTING:C.blue,STOPPING:C.orange,RESTARTING:C.purple,FAILED:C.danger,IN_PROGRESS:C.blue,PENDING:C.yellow||C.warning,OPEN:C.danger,ACKNOWLEDGED:C.warning,RESOLVED:C.green,CLOSED:C.muted,SCHEDULED:C.blue,COMPLETED:C.green}[s]||C.muted);
-const deriveWLSStatus = (s) => {
-  if(s.operationStatus)return s.operationStatus;
-  if(s.cpu>=92||s.jvmHeap>=95||s.mem>=95)return"CRITICAL";
-  if(s.cpu>=75||s.jvmHeap>=82||s.mem>=82||s.threads/s.maxThreads>=0.88)return"WARNING";
-  if(s.env==="DR")return"STANDBY";
-  return"RUNNING";
-};
-
-// ── Email Alert ────────────────────────────────────────────
-const sendEmailAlert = async (subject, message, priority="HIGH") => {
-  try {
-    // Load EmailJS dynamically
-    if (!window.emailjs) {
-      await new Promise((resolve) => {
-        const script = document.createElement("script");
-        script.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js";
-        script.onload = resolve;
-        document.head.appendChild(script);
-      });
-      window.emailjs.init(EMAILJS_PUBLIC_KEY);
-    }
-    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email: ALERT_EMAIL,
-      subject: `[GSC OCI ${priority}] ${subject}`,
-      message: message,
-      time: now(),
-      platform_url: "https://lakhshit.in",
-    });
-    return true;
-  } catch (err) {
-    console.log("Email not configured yet:", err);
-    return false;
+// ─── WLS REST API Layer ─────────────────────────────────────────────────────
+const wlsApi = {
+  async get(path) {
+    const r = await fetch(PROXY_URL + path, { headers:{ Accept:"application/json" } });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${path}`);
+    return r.json();
+  },
+  async post(path, body={}) {
+    const r = await fetch(PROXY_URL + path, { method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${path}`);
+    return r.json();
+  },
+  async upload(path, formData) {
+    const r = await fetch(PROXY_URL + path, { method:"POST", body: formData });
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${path}`);
+    return r.json();
+  },
+  async health() {
+    try { const r = await fetch(PROXY_URL + "/health", { signal: AbortSignal.timeout(3000) }); return r.ok; }
+    catch { return false; }
   }
 };
 
-function useDB(path){
-  const [data,setData]=useState(null);
-  useEffect(()=>{const r=ref(db,path);const u=onValue(r,s=>setData(s.val()));return()=>u();},[path]);
+// ─── Simulated fallback data ────────────────────────────────────────────────
+const WLS_SEED = [
+  { id:"wls1",name:"WLS-PROD-01",env:"Production",host:"prod-wls-01.gscoci.in",port:7001,cpu:42,mem:68,threads:120,maxThreads:200,jvmHeap:72,gcTime:12,deployments:8,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
+  { id:"wls2",name:"WLS-PROD-02",env:"Production",host:"prod-wls-02.gscoci.in",port:7001,cpu:38,mem:61,threads:98, maxThreads:200,jvmHeap:65,gcTime:8, deployments:8,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
+  { id:"wls3",name:"WLS-PROD-03",env:"Production",host:"prod-wls-03.gscoci.in",port:7001,cpu:78,mem:87,threads:185,maxThreads:200,jvmHeap:89,gcTime:45,deployments:8,version:"14.1.1.0",uptimeSecs:1039800,status:"WARNING" },
+  { id:"wls4",name:"WLS-PROD-04",env:"Production",host:"prod-wls-04.gscoci.in",port:7001,cpu:94,mem:96,threads:198,maxThreads:200,jvmHeap:98,gcTime:120,deployments:8,version:"14.1.1.0",uptimeSecs:177900, status:"CRITICAL"},
+  { id:"wls5",name:"WLS-UAT-01", env:"UAT",        host:"uat-wls-01.gscoci.in", port:7001,cpu:25,mem:45,threads:60, maxThreads:150,jvmHeap:50,gcTime:5, deployments:5,version:"14.1.1.0",uptimeSecs:467200, status:"RUNNING" },
+  { id:"wls6",name:"WLS-DR-01",  env:"DR",         host:"dr-wls-01.gscoci.in",  port:7001,cpu:5, mem:20,threads:10, maxThreads:200,jvmHeap:30,gcTime:2, deployments:8,version:"14.1.1.0",uptimeSecs:7776000,status:"STANDBY" },
+  { id:"wls7",name:"WLS-ADMIN",  env:"Production", host:"prod-wls-admin.gscoci.in",port:7001,cpu:15,mem:35,threads:40,maxThreads:100,jvmHeap:40,gcTime:3, deployments:3,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
+];
+const DEPLOY_SEED = [
+  { name:"pdc-app",      type:"WAR", targets:["WLS-PROD-01","WLS-PROD-02"], state:"ACTIVE",   health:"OK",  version:"1.0.0", deployedAt:"10 Jan 09:12", size:"18 MB" },
+  { name:"gsc-portal",   type:"WAR", targets:["WLS-PROD-01","WLS-PROD-02"], state:"ACTIVE",   health:"OK",  version:"2.3.1", deployedAt:"08 Jan 14:30", size:"42 MB" },
+  { name:"reporting-svc",type:"EAR", targets:["WLS-PROD-01"],               state:"ACTIVE",   health:"OK",  version:"3.1.0", deployedAt:"06 Jan 11:00", size:"65 MB" },
+  { name:"batch-engine",  type:"JAR", targets:["WLS-PROD-02"],               state:"PREPARED", health:"WARN",version:"1.2.0", deployedAt:"04 Jan 08:00", size:"9 MB"  },
+  { name:"uat-portal",    type:"WAR", targets:["WLS-UAT-01"],                state:"ACTIVE",   health:"OK",  version:"2.4.0-SNAPSHOT", deployedAt:"12 Jan 16:00", size:"44 MB" },
+];
+
+// ─── Activity Types ────────────────────────────────────────────────────────
+const AT = {
+  LOGIN:     { icon:"🔐",color:"#1a6fde",label:"Login" },
+  LOGOUT:    { icon:"🚪",color:"#666666",label:"Logout" },
+  TAB_VISIT: { icon:"👁️",color:"#00a8e8",label:"Page View" },
+  OP_SUBMIT: { icon:"📤",color:"#6941C6",label:"Op Submitted" },
+  OP_EXECUTE:{ icon:"⚡",color:"#1a8a1a",label:"Op Executed" },
+  OP_CANCEL: { icon:"❌",color:"#C74634",label:"Op Cancelled" },
+  OP_APPROVE:{ icon:"✅",color:"#1a8a1a",label:"Approved" },
+  OP_REJECT: { icon:"🚫",color:"#C74634",label:"Rejected" },
+  DEPLOY:    { icon:"🚀",color:"#1a6fde",label:"Deployment" },
+  UNDEPLOY:  { icon:"📦",color:"#d95f00",label:"Undeployment" },
+  INCIDENT:  { icon:"🚨",color:"#d95f00",label:"Incident" },
+  FEEDBACK:  { icon:"💬",color:"#6941C6",label:"Feedback" },
+  VISITOR:   { icon:"👤",color:"#00a8e8",label:"Site Visit" },
+  ALERT:     { icon:"🔔",color:"#d95f00",label:"Alert" },
+};
+
+function trackVisitor() {
+  try {
+    push(ref(db,"visitors"),{ timestamp:new Date().toISOString(),time:nowStr(),page:window.location.href,browser:navigator.userAgent.split(") ")[0].split("(")[1]||navigator.userAgent.slice(0,60),platform:navigator.platform,language:navigator.language,screenSize:window.screen.width+"x"+window.screen.height,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,referrer:document.referrer||"Direct" });
+  } catch(e){}
+}
+function useDB(path) {
+  const [data,setData] = useState(null);
+  useEffect(() => { const r=ref(db,path); const u=onValue(r,s=>setData(s.val())); return ()=>u(); },[path]);
   return data;
 }
-
-// ── UI Components ──────────────────────────────────────────
-const Pulse = ({color,size=10}) => (
-  <span style={{position:"relative",display:"inline-block",width:size,height:size,flexShrink:0}}>
-    <span style={{position:"absolute",inset:0,borderRadius:"50%",background:color,opacity:.4,animation:"pr 1.5s ease-out infinite"}}/>
-    <span style={{position:"absolute",inset:0,borderRadius:"50%",background:color}}/>
-  </span>
-);
-
-const Badge = ({text,color,dot}) => (
-  <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:`${color}20`,color,border:`1px solid ${color}40`,whiteSpace:"nowrap"}}>
-    {dot&&<span style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>}{text}
-  </span>
-);
-
-const GlowCard = ({children,color,style={},onClick,C}) => (
-  <div onClick={onClick} style={{background:C.card,border:`1px solid ${(color||C.blue)+"33"}`,borderRadius:16,padding:20,boxShadow:`0 0 20px ${(color||C.blue)+"10"}`,position:"relative",overflow:"hidden",cursor:onClick?"pointer":"default",transition:"all .2s",...style}}
-    onMouseEnter={e=>onClick&&(e.currentTarget.style.boxShadow=`0 0 40px ${(color||C.blue)+"28"}`)}
-    onMouseLeave={e=>onClick&&(e.currentTarget.style.boxShadow=`0 0 20px ${(color||C.blue)+"10"}`)}>
-    <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${color||C.blue},transparent)`}}/>
-    {children}
-  </div>
-);
-
-const MetricBar = ({value,max=100,label,unit="%",warn=70,crit=90,small,C}) => {
-  const pct=Math.min(100,(value/max)*100);
-  const color=pct>=crit?C.danger:pct>=warn?C.warning:C.success;
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:small?10:11}}>
-        <span style={{color:C.muted}}>{label}</span>
-        <span style={{color,fontWeight:700}}>{value}{unit}</span>
-      </div>
-      <div style={{height:small?4:6,background:C.dim,borderRadius:3,overflow:"hidden"}}>
-        <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:3,transition:"width .8s,background .4s",boxShadow:`0 0 8px ${color}60`}}/>
-      </div>
-    </div>
-  );
-};
-
-const Btn = ({children,grad,color,onClick,style={},sm,disabled,C}) => (
-  <button onClick={onClick} disabled={disabled} style={{padding:sm?"6px 14px":"10px 22px",background:disabled?C.dim:grad||`${color||C.blue}22`,border:`1px solid ${disabled?C.dim:color||C.blue}44`,borderRadius:10,color:disabled?C.muted:grad?"#fff":color||C.blue,fontWeight:700,fontSize:sm?12:13,cursor:disabled?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .15s",opacity:disabled?.5:1,boxShadow:grad&&!disabled?`0 4px 20px ${color||C.blue}40`:"none",...style}}>{children}</button>
-);
-
-const Inp = ({value,onChange,placeholder,type="text",rows,style={},C}) => {
-  const base={width:"100%",padding:"10px 14px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",...style};
-  return rows?<textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={{...base,resize:"vertical"}}/>:<input type={type} value={value} onChange={onChange} placeholder={placeholder} style={base}/>;
-};
-
-const Sel = ({value,onChange,children,style={},C}) => (
-  <select value={value} onChange={onChange} style={{width:"100%",padding:"10px 14px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",...style}}>{children}</select>
-);
-
-const Terminal = ({lines,height=220,C}) => {
-  const r=useRef(null);
-  useEffect(()=>{if(r.current)r.current.scrollTop=r.current.scrollHeight;},[lines]);
-  return (
-    <div ref={r} style={{background:"#000",borderRadius:10,padding:14,height,overflowY:"auto",fontFamily:"'JetBrains Mono',monospace",fontSize:11,border:`1px solid ${C.green}33`,lineHeight:1.6}}>
-      {lines.map((l,i)=><div key={i} style={{color:l.startsWith("[ERR")?C.danger:l.startsWith("[WARN")?C.warning:l.startsWith("[OK")||l.startsWith("[SUC")?C.success:l.startsWith("[INFO")?C.cyan:C.text}}>{l}</div>)}
-      <div style={{display:"inline-block",width:8,height:12,background:C.green,animation:"blink 1s step-end infinite",verticalAlign:"middle"}}/>
-    </div>
-  );
-};
-
-// ── Toast ──────────────────────────────────────────────────
-function ToastContainer({toasts,dismiss}){
-  return (
-    <div style={{position:"fixed",top:80,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8,maxWidth:340}}>
-      {toasts.map(t=>(
-        <div key={t.id} style={{background:"#0a0f1a",border:`1px solid ${t.color}55`,borderRadius:12,padding:"12px 16px",boxShadow:`0 4px 20px ${t.color}30`,display:"flex",gap:12,alignItems:"flex-start",animation:"slideIn .3s ease"}}>
-          <span style={{fontSize:18,flexShrink:0}}>{t.icon}</span>
-          <div style={{flex:1}}>
-            <div style={{fontWeight:700,fontSize:12,color:t.color}}>{t.title}</div>
-            <div style={{fontSize:11,color:"#4a6080",marginTop:3}}>{t.message}</div>
-          </div>
-          <button onClick={()=>dismiss(t.id)} style={{background:"none",border:"none",color:"#4a6080",cursor:"pointer",fontSize:14,flexShrink:0}}>✕</button>
-        </div>
-      ))}
-    </div>
-  );
+function useActivityRecorder(user) {
+  const sessionId = useRef("S_"+Date.now());
+  const record = useCallback((type,details) => {
+    if(!user) return;
+    push(ref(db,"activityLog"),Object.assign({ type,icon:AT[type]?.icon||"📌",label:AT[type]?.label||type,color:AT[type]?.color||"#666",user:user.name,role:user.role,sessionId:sessionId.current,timestamp:new Date().toISOString(),time:nowStr() },details||{}));
+  },[user]);
+  useEffect(() => {
+    if(!user) return;
+    record("LOGIN",{ description:user.name+" signed in" });
+    const fn=()=>record("LOGOUT",{ description:user.name+" signed out" });
+    window.addEventListener("beforeunload",fn);
+    return ()=>window.removeEventListener("beforeunload",fn);
+  },[user?.name]);
+  return { record, sessionId:sessionId.current };
 }
 
-// ── Approval Modal ─────────────────────────────────────────
-function ApprovalModal({op,target,user,onConfirm,onCancel,C}){
+// ─── UI Atoms ─────────────────────────────────────────────────────────────
+const Pulse = ({color,size=10}) => <span style={{position:"relative",display:"inline-block",width:size,height:size,flexShrink:0}}><span style={{position:"absolute",inset:0,borderRadius:"50%",background:color,opacity:.4,animation:"pr 1.5s ease-out infinite"}}/><span style={{position:"absolute",inset:0,borderRadius:"50%",background:color}}/></span>;
+const Badge = ({text,color,dot}) => <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"2px 9px",borderRadius:4,fontSize:11,fontWeight:700,background:color+"18",color,border:"1px solid "+color+"40",whiteSpace:"nowrap"}}>{dot&&<span style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>}{text}</span>;
+const Chip = ({label,color,C}) => <span style={{padding:"3px 8px",background:color+"18",border:"1px solid "+color+"33",borderRadius:3,fontSize:10,fontWeight:700,color}}>{label}</span>;
+
+const Card = ({children,color,style,onClick,C}) => {
+  const [hov,setHov]=useState(false);
+  return <div onClick={onClick} onMouseEnter={()=>onClick&&setHov(true)} onMouseLeave={()=>setHov(false)} style={Object.assign({background:C.card,border:"1px solid "+C.border,borderTop:"3px solid "+(color||C.red),borderRadius:4,padding:20,cursor:onClick?"pointer":"default",transition:"all .2s",boxShadow:hov?"0 4px 16px "+C.shadow:"0 1px 4px "+C.shadow,transform:hov?"translateY(-1px)":"none"},style||{})}>{children}</div>;
+};
+
+const MetricBar = ({value,max,label,unit,warn,crit,small,C}) => {
+  const m=max||100,u=unit!==undefined?unit:"%",w=warn||70,cr=crit||90;
+  const pct=Math.min(100,(value/m)*100);
+  const color=pct>=cr?C.danger:pct>=w?C.warning:C.success;
+  return <div><div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:small?10:11}}><span style={{color:C.muted}}>{label}</span><span style={{color,fontWeight:700}}>{value}{u}</span></div><div style={{height:small?4:6,background:C.dim,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:color,borderRadius:2,transition:"width .8s"}}/></div></div>;
+};
+
+const Btn = ({children,color,onClick,style,sm,disabled,outline,loading,C}) => {
+  const col=color||C.red;
+  return <button onClick={onClick} disabled={disabled||loading} style={Object.assign({padding:sm?"5px 14px":"9px 20px",background:outline||disabled?"transparent":col,border:"1px solid "+(disabled?C.dim:col),borderRadius:4,color:disabled?C.muted:outline?col:"#fff",fontWeight:700,fontSize:sm?12:13,cursor:disabled||loading?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .15s",opacity:disabled?0.5:1,display:"flex",alignItems:"center",gap:6},style||{})}>{loading&&<span style={{display:"inline-block",width:12,height:12,border:"2px solid currentColor",borderTopColor:"transparent",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>}{children}</button>;
+};
+
+const Inp = ({value,onChange,placeholder,type,rows,style,C}) => {
+  const base={width:"100%",padding:"9px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"};
+  return rows?<textarea value={value} onChange={onChange} placeholder={placeholder} rows={rows} style={Object.assign({},base,{resize:"vertical"},style||{})}/>:<input type={type||"text"} value={value} onChange={onChange} placeholder={placeholder} style={Object.assign({},base,style||{})}/>;
+};
+
+const Sel = ({value,onChange,children,C}) => <select value={value} onChange={onChange} style={{width:"100%",padding:"9px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}>{children}</select>;
+
+const Terminal = ({lines,height,C}) => {
+  const r=useRef(null);
+  useEffect(()=>{ if(r.current) r.current.scrollTop=r.current.scrollHeight; },[lines]);
+  return <div ref={r} style={{background:"#000",borderRadius:4,padding:14,height:height||220,overflowY:"auto",fontFamily:"'JetBrains Mono',monospace",fontSize:11,border:"1px solid "+C.success+"33",lineHeight:1.6}}>
+    {lines.map((l,i)=><div key={i} style={{color:l.startsWith("[ERR")?C.danger:l.startsWith("[WARN")?C.warning:l.startsWith("[OK")||l.startsWith("[SUC")?C.success:l.startsWith("[INFO")?C.cyan:C.text}}>{l}</div>)}
+    <div style={{display:"inline-block",width:8,height:12,background:C.success,animation:"blink 1s step-end infinite",verticalAlign:"middle"}}/>
+  </div>;
+};
+
+// ─── Toast ─────────────────────────────────────────────────────────────────
+function ToastContainer({toasts,dismiss}) {
+  return <div style={{position:"fixed",top:70,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8,maxWidth:360,pointerEvents:"none"}}>
+    {toasts.map(t=><div key={t.id} style={{pointerEvents:"all",background:"#111",border:"1px solid "+t.color+"55",borderLeft:"4px solid "+t.color,borderRadius:4,padding:"12px 16px",boxShadow:"0 2px 12px rgba(0,0,0,.4)",display:"flex",gap:12,alignItems:"flex-start",animation:"slideIn .2s ease"}}>
+      <span style={{fontSize:18,flexShrink:0}}>{t.icon}</span>
+      <div style={{flex:1}}><div style={{fontWeight:700,fontSize:12,color:t.color}}>{t.title}</div>{t.message&&<div style={{fontSize:11,color:"#666",marginTop:3}}>{t.message}</div>}</div>
+      <button onClick={()=>dismiss(t.id)} style={{background:"none",border:"none",color:"#666",cursor:"pointer",fontSize:14,pointerEvents:"all"}}>✕</button>
+    </div>)}
+  </div>;
+}
+
+// ─── Approval Modal ────────────────────────────────────────────────────────
+function ApprovalModal({op,target,user,onConfirm,onCancel,C,record}) {
   const [reason,setReason]=useState("");
   const [ticket,setTicket]=useState("");
   const [priority,setPriority]=useState("Normal");
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>
-      <GlowCard color={priority==="Emergency"?C.danger:C.warning} style={{width:"100%",maxWidth:500,padding:32}} C={C}>
-        <div style={{textAlign:"center",marginBottom:20}}>
-          <div style={{fontSize:44,marginBottom:10}}>{op==="RESTART"?"🔄":op==="STOP"?"⏹️":op==="START"?"▶️":"⚡"}</div>
-          <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:C.text,margin:"0 0 6px"}}>{op} — {target}</h2>
-          {user.role!=="admin"&&<Badge text="REQUIRES APPROVAL" color={C.warning}/>}
-          {user.role==="admin"&&<Badge text="DIRECT EXECUTION" color={C.green}/>}
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <Card color={C.red} style={{width:"100%",maxWidth:500,padding:32}} C={C}>
+      <div style={{textAlign:"center",marginBottom:20}}>
+        <div style={{fontSize:44,marginBottom:10}}>{op==="RESTART"?"🔄":op==="STOP"?"⏹️":op==="DEPLOY"?"🚀":op==="UNDEPLOY"?"📦":"▶️"}</div>
+        <h2 style={{fontWeight:800,fontSize:18,color:C.text,margin:"0 0 6px"}}>{op} — {target}</h2>
+        {user.role==="admin"?<Badge text="DIRECT EXECUTION" color={C.success}/>:<Badge text="REQUIRES APPROVAL" color={C.warning}/>}
+      </div>
+      <div style={{marginBottom:12}}>
+        <div style={{fontSize:11,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Priority</div>
+        <div style={{display:"flex",gap:8}}>
+          {["Low","Normal","High","Emergency"].map(p=><button key={p} onClick={()=>setPriority(p)} style={{flex:1,padding:"7px 4px",background:priority===p?(p==="Emergency"?C.danger:C.blue):C.card2,border:"1px solid "+(priority===p?(p==="Emergency"?C.danger:C.blue):C.border),borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,color:priority===p?"#fff":C.muted}}>{p}</button>)}
         </div>
-        {user.role!=="admin"&&<div style={{background:`${C.warning}15`,border:`1px solid ${C.warning}30`,borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:C.warning}}>⚠️ Queued for approval. Execution only after approver sign-off.</div>}
-        <div style={{marginBottom:12}}>
-          <div style={{fontSize:11,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Priority</div>
-          <div style={{display:"flex",gap:8}}>
-            {["Low","Normal","High","Emergency"].map(p=><button key={p} onClick={()=>setPriority(p)} style={{flex:1,padding:"7px 4px",background:priority===p?`${p==="Emergency"?C.danger:C.blue}22`:C.card2,border:`1px solid ${priority===p?p==="Emergency"?C.danger:C.blue:C.border}`,borderRadius:8,cursor:"pointer",fontSize:11,fontWeight:700,color:priority===p?p==="Emergency"?C.danger:C.blue:C.muted}}>{p}</button>)}
-          </div>
-        </div>
-        <Inp value={ticket} onChange={e=>setTicket(e.target.value)} placeholder="Change Ticket #" style={{marginBottom:10}} C={C}/>
-        <Inp value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason / justification *" rows={3} style={{marginBottom:16}} C={C}/>
-        <div style={{display:"flex",gap:12}}>
-          <button onClick={onCancel} style={{flex:1,padding:11,background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,color:C.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <Btn grad={user.role==="admin"?G.green:G.orange} color={user.role==="admin"?C.green:C.orange} onClick={()=>reason.trim()&&onConfirm({reason,ticket,priority})} disabled={!reason.trim()} style={{flex:2,padding:11}} C={C}>
-            {user.role==="admin"?"⚡ Execute Now":"📤 Submit for Approval"}
-          </Btn>
-        </div>
-      </GlowCard>
-    </div>
-  );
+      </div>
+      <Inp value={ticket} onChange={e=>setTicket(e.target.value)} placeholder="Change Ticket #" style={{marginBottom:10}} C={C}/>
+      <Inp value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason / justification *" rows={3} style={{marginBottom:16}} C={C}/>
+      <div style={{display:"flex",gap:12}}>
+        <button onClick={()=>{record&&record("OP_CANCEL",{operation:op,target});onCancel();}} style={{flex:1,padding:11,background:"transparent",border:"1px solid "+C.border,borderRadius:4,color:C.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        <Btn color={user.role==="admin"?C.success:C.warning} onClick={()=>reason.trim()&&onConfirm({reason,ticket,priority})} disabled={!reason.trim()} style={{flex:2,padding:11}} C={C}>{user.role==="admin"?"⚡ Execute Now":"📤 Submit for Approval"}</Btn>
+      </div>
+    </Card>
+  </div>;
 }
 
-// ── Theme Toggle ───────────────────────────────────────────
-const ThemeToggle = ({isDark,toggle}) => (
-  <button onClick={toggle} style={{background:"transparent",border:"1px solid #ffffff44",borderRadius:20,padding:"5px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:"#fff",fontSize:12,fontWeight:600}}>
-    {isDark?"☀️ Light":"🌙 Dark"}
-  </button>
-);
+// ─── Connection Status Banner ──────────────────────────────────────────────
+function ConnectionBanner({status,proxyUrl,C}) {
+  if(status==="connected") return null;
+  return <div style={{background:status==="checking"?C.blue+"18":C.warning+"18",borderBottom:"2px solid "+(status==="checking"?C.blue:C.warning),padding:"8px 20px",display:"flex",alignItems:"center",gap:10,fontSize:12}}>
+    {status==="checking"?<span style={{display:"inline-block",width:12,height:12,border:"2px solid "+C.blue,borderTopColor:"transparent",borderRadius:"50%",animation:"spin .7s linear infinite"}}/>:<span>⚠️</span>}
+    <span style={{color:status==="checking"?C.blue:C.warning,fontWeight:700}}>{status==="checking"?"Connecting to WLS proxy...":"Running in Simulation Mode"}</span>
+    {status==="disconnected"&&<span style={{color:C.muted}}>Set <code style={{background:C.dim,padding:"1px 5px",borderRadius:3}}>REACT_APP_WLS_PROXY_URL</code> to connect to real WebLogic · Proxy: {proxyUrl}</span>}
+    {status==="disconnected"&&<Badge text="SIMULATED DATA" color={C.warning}/>}
+  </div>;
+}
 
-// ── LOGIN ──────────────────────────────────────────────────
-function Login({onLogin,isDark,toggleTheme}){
+// ─── Login Page ────────────────────────────────────────────────────────────
+function Login({onLogin,isDark,toggleTheme}) {
   const C=isDark?DARK:LIGHT;
   const [role,setRole]=useState("");
   const [pass,setPass]=useState("");
   const [err,setErr]=useState("");
   const [time,setTime]=useState(new Date());
-  useEffect(()=>{const t=setInterval(()=>setTime(new Date()),1000);return()=>clearInterval(t);},[]);
+  useEffect(()=>{ const t=setInterval(()=>setTime(new Date()),1000); return ()=>clearInterval(t); },[]);
+  useEffect(()=>{ trackVisitor(); },[]);
   const login=()=>{
-    if(!role)return setErr("Select a role.");
-    if(role==="viewer")return onLogin({name:"Viewer",role:"viewer",initials:"VW"});
-    if(pass!==PASSWORDS[role])return setErr("Incorrect password.");
+    if(!role) return setErr("Select a role.");
+    if(role==="viewer") return onLogin({name:"Viewer",role:"viewer",initials:"VW"});
+    if(pass!==PASSWORDS[role]) return setErr("Incorrect password.");
     const names={admin:"System Admin",operator:"OPS Engineer",approver:"Change Approver"};
     onLogin({name:names[role],role,initials:role.slice(0,2).toUpperCase()});
   };
-  return (
-    <div style={{minHeight:"100vh",background:C.bg,display:"flex",fontFamily:"'DM Sans',sans-serif",overflow:"hidden",color:C.text}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;700&display=swap');*{box-sizing:border-box}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pr{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.5);opacity:0}}@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div style={{position:"fixed",inset:0,zIndex:0}}>
-        {[["#C74634","8%","15%"],["#1e90ff","75%","65%"],["#00d4ff","45%","85%"]].map(([c,l,t],i)=><div key={i} style={{position:"absolute",left:l,top:t,width:"300px",height:"300px",background:c,borderRadius:"50%",filter:"blur(100px)",opacity:.07}}/>)}
-        <div style={{position:"absolute",inset:0,backgroundImage:`linear-gradient(${C.border}22 1px,transparent 1px),linear-gradient(90deg,${C.border}22 1px,transparent 1px)`,backgroundSize:"40px 40px",opacity:.3}}/>
+  return <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",fontFamily:"'DM Sans',sans-serif"}}>
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');*{box-sizing:border-box}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pr{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.5);opacity:0}}@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <div style={{background:C.red,padding:"14px 32px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{display:"flex",alignItems:"center",gap:16}}>
+        <div style={{fontWeight:800,fontSize:22,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
+        <div style={{width:1,height:24,background:"rgba(255,255,255,.3)"}}/>
+        <div style={{color:"rgba(255,255,255,.9)",fontSize:14,fontWeight:600}}>GSC OCI Control Platform</div>
       </div>
-      {/* Left Panel */}
-      <div style={{width:400,background:"linear-gradient(180deg,#0a0f1a,#060910)",borderRight:`1px solid #1a2540`,display:"flex",flexDirection:"column",padding:36,position:"relative",zIndex:1,flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
-          <div style={{display:"flex",alignItems:"center",gap:14}}>
-            <div style={{width:48,height:48,background:G.oci,borderRadius:14,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:`0 0 30px #C7463450`}}>☁️</div>
-            <div>
-              <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:"#e8eef8"}}>GSC OCI Control</div>
-              <div style={{fontSize:10,color:"#4a6080",letterSpacing:2,textTransform:"uppercase"}}>Oracle Cloud Infrastructure</div>
-            </div>
+      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+        <span style={{color:"rgba(255,255,255,.7)",fontSize:12}}>Enterprise Edition</span>
+        <button onClick={toggleTheme} style={{background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.3)",borderRadius:4,padding:"4px 12px",cursor:"pointer",color:"#fff",fontSize:12,fontWeight:600}}>{isDark?"☀️ Light":"🌙 Dark"}</button>
+      </div>
+    </div>
+    <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
+      <div style={{width:"100%",maxWidth:960,display:"grid",gridTemplateColumns:"1fr 1fr",gap:40}}>
+        <div>
+          <div style={{fontSize:13,color:C.red,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:12}}>GSC Oracle Cloud Infrastructure</div>
+          <h1 style={{fontSize:36,fontWeight:800,color:C.text,margin:"0 0 16px",lineHeight:1.2}}>Infrastructure<br/>Control Platform</h1>
+          <p style={{color:C.muted,fontSize:14,lineHeight:1.7,marginBottom:28}}>Unified monitoring and management for Oracle Cloud Infrastructure — WebLogic, Compute, Databases, OKE, Networking and more.</p>
+          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:24,fontWeight:700,color:C.red,marginBottom:4}}>{time.toLocaleTimeString()}</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:24}}>{time.toLocaleDateString("en-IN",{weekday:"long",year:"numeric",month:"long",day:"numeric"})} · IST</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            {[["7","WebLogic Servers"],["6","Compute Instances"],["3","Databases"],["2","OKE Clusters"],["4","OCI Functions"],["2","WAF Policies"]].map(([v,l])=><div key={l} style={{background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+C.red,borderRadius:4,padding:"10px 14px"}}>
+              <div style={{fontSize:22,fontWeight:800,color:C.red,fontFamily:"monospace"}}>{v}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{l}</div>
+            </div>)}
           </div>
-          <ThemeToggle isDark={isDark} toggle={toggleTheme}/>
         </div>
-        <div style={{background:"#0a0f1a",border:"1px solid #1a2540",borderRadius:12,padding:"12px 16px",marginBottom:14}}>
-          <div style={{fontSize:9,color:"#4a6080",marginBottom:4,letterSpacing:1}}>SYSTEM TIME (IST)</div>
-          <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700,color:"#00d4ff"}}>{time.toLocaleTimeString()}</div>
-          <div style={{fontSize:10,color:"#4a6080",marginTop:3}}>{time.toLocaleDateString("en-IN",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
-        </div>
-        <div style={{background:"#0a0f1a",border:"1px solid #1a2540",borderRadius:12,padding:"12px 16px",marginBottom:14}}>
-          <div style={{fontSize:9,color:"#4a6080",marginBottom:10,letterSpacing:1}}>INFRASTRUCTURE SUMMARY</div>
-          {[["💻 Compute",`${OCI_COMPUTE.filter(c=>c.status==="RUNNING").length}/${OCI_COMPUTE.length} Running`,"#00e676"],["⚡ WebLogic",`${WLS_SERVERS.filter(s=>s.env==="Production").length} Production`,"#ff9100"],["🗄️ Databases",`${OCI_DATABASES.length} Available`,"#1e90ff"],["⚖️ Load Balancers",`${OCI_LB.length} Active`,"#1de9b6"]].map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:7}}><span style={{fontSize:11,color:"#4a6080"}}>{l}</span><span style={{fontSize:11,fontWeight:700,color:c}}>{v}</span></div>
-          ))}
-        </div>
-        <div style={{background:"#ff174415",border:"1px solid #ff174430",borderRadius:12,padding:"12px 16px"}}>
-          <div style={{fontSize:9,color:"#ff1744",marginBottom:8,fontWeight:700,letterSpacing:1}}>⚠ ACTIVE ALERTS</div>
-          <div style={{fontSize:11,color:"#e8eef8",marginBottom:4}}><span style={{color:"#ff1744"}}>●</span> WLS-PROD-04: JVM Heap 98%</div>
-          <div style={{fontSize:11,color:"#e8eef8",marginBottom:4}}><span style={{color:"#ff1744"}}>●</span> WLS-PROD-04: CPU 94%</div>
-          <div style={{fontSize:11,color:"#e8eef8"}}><span style={{color:"#ff9100"}}>●</span> WLS-PROD-03: Thread pool 92%</div>
-        </div>
-      </div>
-      {/* Right Panel */}
-      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:48,position:"relative",zIndex:1}}>
-        <div style={{width:"100%",maxWidth:420}}>
-          <h1 style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:C.text,margin:"0 0 6px"}}>Secure Access</h1>
-          <p style={{color:C.muted,margin:"0 0 26px",fontSize:13}}>GSC Oracle Cloud Infrastructure Management</p>
-          <GlowCard color={C.blue} style={{padding:26}} C={C}>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,color:C.muted,marginBottom:10,letterSpacing:1,textTransform:"uppercase"}}>Select Role</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                {[["admin","🛡️","System Admin","Full control"],["operator","⚙️","OPS Engineer","Operations"],["approver","✅","Change Approver","Approvals"],["viewer","👁️","Viewer","Read only"]].map(([r,icon,label,sub])=>(
-                  <button key={r} onClick={()=>{setRole(r);setErr("");setPass("");}} style={{padding:"13px 8px",background:role===r?`${C.blue}20`:C.card2,border:`1px solid ${role===r?C.blue:C.border}`,borderRadius:12,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
-                    <div style={{fontSize:20,marginBottom:4}}>{icon}</div>
-                    <div style={{fontWeight:700,fontSize:12,color:role===r?C.blue:C.text}}>{label}</div>
-                    <div style={{fontSize:10,color:C.muted,marginTop:2}}>{sub}</div>
-                  </button>
-                ))}
+        <div>
+          <Card color={C.red} style={{padding:32}} C={C}>
+            <div style={{marginBottom:24}}>
+              <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 6px"}}>Secure Sign In</h2>
+              <p style={{color:C.muted,margin:0,fontSize:13}}>Select your role and enter credentials</p>
+            </div>
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,color:C.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Select Role</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {[["admin","🛡️","System Admin","Full control"],["operator","⚙️","OPS Engineer","Operations"],["approver","✅","Change Approver","Approvals"],["viewer","👁️","Viewer","Read only"]].map(([r,icon,label,sub])=><button key={r} onClick={()=>{setRole(r);setErr("");setPass("");}} style={{padding:"12px 8px",background:role===r?C.red+"15":C.card2,border:"2px solid "+(role===r?C.red:C.border),borderRadius:4,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+                  <div style={{fontSize:20,marginBottom:4}}>{icon}</div>
+                  <div style={{fontWeight:700,fontSize:12,color:role===r?C.red:C.text}}>{label}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{sub}</div>
+                </button>)}
               </div>
             </div>
-            {role&&role!=="viewer"&&<div style={{marginBottom:14}}>
-              <Inp value={pass} onChange={e=>{setPass(e.target.value);setErr("");}} placeholder="Enter password" type="password" C={C}/>
-              <div style={{fontSize:10,color:C.dim,marginTop:5}}>Contact your system administrator for credentials.</div>
-            </div>}
-            {err&&<div style={{color:C.danger,fontSize:12,marginBottom:10}}>⚠ {err}</div>}
-            <Btn grad={G.oci} color={C.red} onClick={login} style={{width:"100%",padding:12}} C={C}>🔐 Sign In to OCI Control</Btn>
-          </GlowCard>
+            {role&&role!=="viewer"&&<div style={{marginBottom:16}}><Inp value={pass} onChange={e=>{setPass(e.target.value);setErr("");}} placeholder="Enter password" type="password" C={C}/></div>}
+            {err&&<div style={{color:C.danger,fontSize:12,marginBottom:12,padding:"8px 12px",background:C.danger+"15",borderRadius:4,border:"1px solid "+C.danger+"33"}}>⚠ {err}</div>}
+            <Btn color={C.red} onClick={login} style={{width:"100%",padding:12,fontSize:14,justifyContent:"center"}} C={C}>🔐 Sign In to OCI Control</Btn>
+          </Card>
+          <div style={{marginTop:16,padding:"12px 16px",background:C.card,border:"1px solid "+C.border,borderRadius:4,fontSize:11,color:C.muted,textAlign:"center"}}>🔍 All access is logged and recorded.</div>
         </div>
       </div>
     </div>
-  );
+    <div style={{background:C.card,borderTop:"1px solid "+C.border,padding:"12px 32px",display:"flex",justifyContent:"space-between",fontSize:11,color:C.muted}}>
+      <span>© 2025 GSC OCI Control Platform · Oracle Cloud Infrastructure</span>
+      <span>Mumbai · Hyderabad · Enterprise Edition</span>
+    </div>
+  </div>;
 }
 
-export default function App(){
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN APP
+// ═══════════════════════════════════════════════════════════════════════════
+export default function App() {
   const [user,setUser]=useState(null);
   const [isDark,setIsDark]=useState(true);
-  const toggleTheme=()=>setIsDark(d=>!d);
-  if(!user)return <Login onLogin={setUser} isDark={isDark} toggleTheme={toggleTheme}/>;
-  return <MainApp user={user} onLogout={()=>setUser(null)} isDark={isDark} toggleTheme={toggleTheme}/>;
+  if(!user) return <Login onLogin={setUser} isDark={isDark} toggleTheme={()=>setIsDark(d=>!d)}/>;
+  return <MainApp user={user} onLogout={()=>setUser(null)} isDark={isDark} toggleTheme={()=>setIsDark(d=>!d)}/>;
 }
 
-function MainApp({user,onLogout,isDark,toggleTheme}){
+function MainApp({user,onLogout,isDark,toggleTheme}) {
   const C=isDark?DARK:LIGHT;
   const [tab,setTab]=useState("overview");
-  const [wlsServers,setWlsServers]=useState(()=>WLS_SERVERS.map(s=>({...s,status:deriveWLSStatus(s)})));
-  const [compute,setCompute]=useState(OCI_COMPUTE);
-  const [databases,setDatabases]=useState(OCI_DATABASES);
-  const [lbs,setLbs]=useState(OCI_LB);
-  const [wlsIssues,setWlsIssues]=useState([
-    {id:"i1",server:"WLS-PROD-04",severity:"CRITICAL",type:"Memory Leak",description:"JVM Heap at 98%",detected:"2 min ago",autoHeal:true,status:"HEALING"},
-    {id:"i2",server:"WLS-PROD-03",severity:"WARNING",type:"Thread Starvation",description:"185/200 threads active",detected:"15 min ago",autoHeal:true,status:"DETECTED"},
-  ]);
+  const [proxyStatus,setProxyStatus]=useState("checking"); // checking|connected|disconnected
+  const [realMode,setRealMode]=useState(false);
+
+  // ─── Data state ──────────────────────────────────────────────────────────
+  const [wls,setWls]=useState(WLS_SEED);
+  const [deployments,setDeployments]=useState(DEPLOY_SEED);
+  const [termLines,setTermLines]=useState(["[INFO] GSC OCI Control Platform ready.","[INFO] Enterprise Edition · All systems monitored."]);
   const [toasts,setToasts]=useState([]);
   const [modal,setModal]=useState(null);
-  const [termLines,setTermLines]=useState(["[INFO] GSC OCI Control Platform ready.","[INFO] All systems monitored."]);
   const [showChatbot,setShowChatbot]=useState(false);
   const [emailAlerts,setEmailAlerts]=useState(true);
+  const { record } = useActivityRecorder(user);
 
-  const approvalsDB=useDB("approvals");
-  const auditDB=useDB("auditLogs");
-  const incidentsDB=useDB("incidents");
-  const maintenanceDB=useDB("maintenance");
-  const ticketsDB=useDB("tickets");
+  // Firebase
+  const approvalsDB  = useDB("approvals");
+  const auditDB      = useDB("auditLogs");
+  const incidentsDB  = useDB("incidents");
+  const activityDB   = useDB("activityLog");
+  const visitorsDB   = useDB("visitors");
+  const feedbackDB   = useDB("feedback");
+  const approvalList = approvalsDB  ? Object.entries(approvalsDB).map(([k,v])=>({id:k,...v}))  : [];
+  const auditList    = auditDB      ? Object.entries(auditDB).map(([k,v])=>({id:k,...v}))      : [];
+  const incidentList = incidentsDB  ? Object.entries(incidentsDB).map(([k,v])=>({id:k,...v}))  : [];
+  const activityList = activityDB   ? Object.entries(activityDB).map(([k,v])=>({id:k,...v}))   : [];
+  const visitorList  = visitorsDB   ? Object.entries(visitorsDB).map(([k,v])=>({id:k,...v}))   : [];
+  const feedbackList = feedbackDB   ? Object.entries(feedbackDB).map(([k,v])=>({id:k,...v}))   : [];
 
-  const approvalList=approvalsDB?Object.entries(approvalsDB).map(([k,v])=>({id:k,...v})):[];
-  const auditList=auditDB?Object.entries(auditDB).map(([k,v])=>({id:k,...v})):[];
-  const incidentList=incidentsDB?Object.entries(incidentsDB).map(([k,v])=>({id:k,...v})):[];
-  const maintenanceList=maintenanceDB?Object.entries(maintenanceDB).map(([k,v])=>({id:k,...v})):[];
-  const ticketList=ticketsDB?Object.entries(ticketsDB).map(([k,v])=>({id:k,...v})):[];
-
-  const addToast=(title,message,color,icon)=>{
+  const addToast = (title,message,color,icon) => {
     const id=Date.now();
-    setToasts(prev=>[...prev,{id,title,message,color,icon}]);
-    setTimeout(()=>setToasts(prev=>prev.filter(t=>t.id!==id)),6000);
+    setToasts(p=>[...p,{id,title,message,color,icon}]);
+    setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),6000);
   };
 
-  // Live metrics + auto-alerts
+  // ─── Proxy connection check ───────────────────────────────────────────────
   useEffect(()=>{
-    const t=setInterval(()=>{
-      const drift=(v,r,mn,mx)=>Math.min(mx,Math.max(mn,v+(Math.random()-.5)*r));
-      setWlsServers(prev=>prev.map(s=>{
-        if(["STOPPED","STANDBY","STARTING","STOPPING","RESTARTING"].includes(s.status))return s;
-        const cpu=Math.round(drift(s.cpu,s.env==="Production"?5:2,2,99));
-        const mem=Math.round(drift(s.mem,2,10,99));
-        const jvmHeap=Math.round(drift(s.jvmHeap,3,10,99));
-        const gcTime=Math.round(drift(s.gcTime,s.jvmHeap>85?8:2,1,250));
-        const threads=Math.round(drift(s.threads,4,1,s.maxThreads));
-        const upd={...s,cpu,mem,jvmHeap,gcTime,threads,uptimeSecs:s.uptimeSecs+3};
-        const newStatus=deriveWLSStatus(upd);
-        if(newStatus==="CRITICAL"&&s.status!=="CRITICAL"){
-          addToast(`🔴 CRITICAL: ${s.name}`,`CPU:${cpu}% MEM:${mem}% JVM:${jvmHeap}%`,"#ff1744","🔴");
-          if(emailAlerts){
-            sendEmailAlert(`CRITICAL Alert: ${s.name}`,
-              `Server ${s.name} has reached CRITICAL status.\n\nMetrics:\n- CPU: ${cpu}%\n- Memory: ${mem}%\n- JVM Heap: ${jvmHeap}%\n- GC Time: ${gcTime}ms\n\nImmediate attention required!\n\nView dashboard: https://lakhshit.in`,"CRITICAL");
-          }
-          // Auto-create P1 incident
-          push(ref(db,"incidents"),{title:`CRITICAL: ${s.name} — CPU:${cpu}% JVM:${jvmHeap}%`,priority:"P1",status:"OPEN",affectedSystem:s.name,category:"Performance",reportedBy:"Auto-Detection",assignee:"On-Call Engineer",createdAt:now(),slaBreachAt:"1 hour",description:`Auto-detected critical threshold breach. CPU:${cpu}% MEM:${mem}% JVM:${jvmHeap}%`});
-        }
-        upd.status=newStatus;
-        return upd;
-      }));
-      setCompute(prev=>prev.map(c=>{
-        if(c.status==="STOPPED")return c;
-        return{...c,cpu:Math.round(drift(c.cpu,4,1,99)),mem:Math.round(drift(c.mem,2,10,99)),uptimeSecs:c.uptimeSecs+3};
-      }));
-      setDatabases(prev=>prev.map(d=>({...d,cpu:Math.round(drift(d.cpu,3,1,90)),connections:Math.round(drift(d.connections,5,1,d.maxConns))})));
-      setLbs(prev=>prev.map(l=>({...l,rps:Math.round(drift(l.rps,50,10,5000)),bw:Math.round(drift(l.bw,20,10,1000))})));
-    },3000);
-    return()=>clearInterval(t);
-  },[emailAlerts]);
-
-  // Auto-heal
-  useEffect(()=>{
-    const t=setInterval(()=>{
-      setWlsIssues(prev=>prev.map(i=>{
-        if(i.autoHeal&&i.status==="DETECTED")return{...i,status:"HEALING"};
-        if(i.autoHeal&&i.status==="HEALING"&&Math.random()>.7){
-          addToast(`✅ Auto-healed: ${i.server}`,`${i.type} resolved automatically`,C.green,"🔄");
-          return{...i,status:"RESOLVED"};
-        }
-        return i;
-      }));
-    },4000);
-    return()=>clearInterval(t);
+    const check=async()=>{
+      const ok=await wlsApi.health();
+      setProxyStatus(ok?"connected":"disconnected");
+      setRealMode(ok);
+      if(ok) {
+        addToast("🔗 Connected","Real WLS data active",C.success,"🟢");
+        loadRealServers();
+        loadRealDeployments();
+      }
+    };
+    check();
+    const t=setInterval(check,30000);
+    return ()=>clearInterval(t);
   },[]);
 
-  const executeOp=(serverId,op)=>{
-    const steps={
-      RESTART:[{d:0,l:"[INFO] Initiating RESTART..."},{d:900,l:"[INFO] Draining connections..."},{d:1800,l:"[OK] Server stopped"},{d:2700,l:"[INFO] Starting server..."},{d:3600,l:"[OK] Datasources connected"},{d:4500,l:"[SUCCESS] ✓ Server RUNNING!"}],
-      STOP:[{d:0,l:"[INFO] Initiating STOP..."},{d:1000,l:"[WARN] Draining..."},{d:2200,l:"[SUCCESS] ✓ Server STOPPED"}],
-      START:[{d:0,l:"[INFO] Starting..."},{d:1200,l:"[INFO] Loading config..."},{d:2500,l:"[SUCCESS] ✓ Server RUNNING!"}],
-    };
-    const wlsMap={RESTART:["STOPPING","STOPPED","STARTING","RUNNING"],STOP:["STOPPING","STOPPED"],START:["STARTING","RUNNING"]};
-    (wlsMap[op]||[]).forEach((st,i)=>setTimeout(()=>setWlsServers(prev=>prev.map(s=>s.id===serverId?{...s,status:st,operationStatus:st==="RUNNING"?null:st}:s)),i*(op==="RESTART"?2000:1500)));
-    (steps[op]||[]).forEach(({d,l})=>setTimeout(()=>setTermLines(prev=>[...prev,l]),d));
+  // ─── Real data loaders ────────────────────────────────────────────────────
+  const loadRealServers = async()=>{
+    try {
+      const data=await wlsApi.get("/api/servers");
+      if(data.servers?.length) {
+        setWls(data.servers.map((s,i)=>({ ...WLS_SEED[i%WLS_SEED.length], ...s, id:"wls"+i, cpu:0, mem:0, jvmHeap:0, gcTime:0, threads:0, maxThreads:200 })));
+        termLine("[OK] Loaded "+data.servers.length+" servers from WLS REST API");
+      }
+    } catch(e) { termLine("[WARN] Server load failed: "+e.message); }
+  };
+  const loadRealDeployments = async()=>{
+    try {
+      const data=await wlsApi.get("/api/deployments");
+      if(data.deployments?.length) setDeployments(data.deployments);
+    } catch(e){}
   };
 
-  const handleOp=(target,op,type="wls")=>setModal({target,op,type});
+  // ─── Live metrics poll (real or simulated) ────────────────────────────────
+  useEffect(()=>{
+    if(realMode) {
+      // Poll real JVM metrics for each server
+      const t=setInterval(async()=>{
+        const updates=await Promise.allSettled(wls.map(s=>wlsApi.get("/api/servers/"+s.name)));
+        setWls(prev=>prev.map((s,i)=>{
+          const d=updates[i];
+          if(d.status==="fulfilled"&&d.value.server) {
+            const rv=d.value.server;
+            return {...s,cpu:rv.jvm?.heapPct||s.cpu,jvmHeap:rv.jvm?.heapPct||s.jvmHeap,gcTime:rv.jvm?.gcTimeSec||s.gcTime,threads:rv.threads?.current||s.threads,status:rv.state==="RUNNING"?"RUNNING":rv.state==="SHUTDOWN"?"STOPPED":rv.state||s.status};
+          }
+          return s;
+        }));
+      },10000);
+      return ()=>clearInterval(t);
+    } else {
+      // Simulate drift
+      const t=setInterval(()=>{
+        setWls(prev=>prev.map(s=>{
+          if(["STOPPED","STANDBY","STARTING","STOPPING"].includes(s.status)) return s;
+          const cpu=Math.round(drift(s.cpu,5,2,99));
+          const jvmHeap=Math.round(drift(s.jvmHeap,3,10,99));
+          if(jvmHeap>=95&&s.status!=="CRITICAL") {
+            addToast("CRITICAL: "+s.name,"JVM:"+jvmHeap+"%",C.danger,"🔴");
+            record("ALERT",{description:"CRITICAL: "+s.name});
+          }
+          const status=jvmHeap>=95?"CRITICAL":jvmHeap>=82?"WARNING":s.env==="DR"?"STANDBY":"RUNNING";
+          return {...s,cpu,mem:Math.round(drift(s.mem,2,10,99)),jvmHeap,gcTime:Math.round(drift(s.gcTime,jvmHeap>85?8:2,1,250)),threads:Math.round(drift(s.threads,4,1,s.maxThreads)),uptimeSecs:s.uptimeSecs+3,status};
+        }));
+      },3000);
+      return ()=>clearInterval(t);
+    }
+  },[realMode,wls.length]);
 
-  const confirmOp=({reason,ticket,priority})=>{
-    const{target,op,type}=modal;
+  const termLine = (l) => setTermLines(p=>[...p,l]);
+
+  // ─── Operations ──────────────────────────────────────────────────────────
+  const handleOp=(target,op,type)=>{
+    record("OP_SUBMIT",{operation:op,target:typeof target==="string"?target:target.name,description:user.name+" submitted "+op});
+    setModal({target,op,type:type||"wls"});
+  };
+
+  const confirmOp=async({reason,ticket,priority})=>{
+    const {target,op,type}=modal;
     const name=typeof target==="string"?target:target.name;
-    const entry={action:`${op} on ${name}`,user:user.name,target:name,operation:op,reason,ticket,priority,requestedBy:user.name,time:now(),resourceType:type};
-    if(user.role==="admin"){
+    const entry={action:op+" on "+name,user:user.name,target:name,operation:op,reason,ticket,priority,time:nowStr(),resourceType:type};
+    if(user.role==="admin") {
       push(ref(db,"auditLogs"),{...entry,status:"APPROVED"});
-      addToast(`⚡ Executing: ${op}`,`${name} — authorized by ${user.name}`,C.green,"⚡");
-      if(type==="wls")executeOp(target.id,op);
-    }else{
-      push(ref(db,"approvals"),{...entry,status:"PENDING"});
-      addToast(`📤 Submitted for Approval`,`${op} on ${name} awaiting sign-off`,C.warning,"📤");
-      if(emailAlerts){
-        sendEmailAlert(`Change Request: ${op} on ${name}`,
-          `New change request submitted.\n\nOperation: ${op}\nTarget: ${name}\nRequested by: ${user.name}\nPriority: ${priority}\nTicket: ${ticket||"N/A"}\nReason: ${reason}\n\nApprove at: https://lakhshit.in`,"CHANGE REQUEST");
+      record("OP_EXECUTE",{operation:op,target:name,description:user.name+" executed "+op+" on "+name});
+      addToast("Executing: "+op,name,C.success,"⚡");
+      termLine("[INFO] "+op+" initiated on "+name);
+      if(realMode) {
+        try {
+          const res=await wlsApi.post("/api/servers/"+name+"/"+op.toLowerCase(),{reason});
+          termLine("[OK] "+res.message||op+" sent to "+name);
+          addToast(op+" sent",name,C.success,"✅");
+          setTimeout(loadRealServers,5000);
+        } catch(e) {
+          termLine("[ERR] "+op+" failed: "+e.message);
+          addToast(op+" failed",e.message,C.danger,"❌");
+        }
+      } else {
+        simulateOp(target,op,type);
       }
+    } else {
+      push(ref(db,"approvals"),{...entry,status:"PENDING",requestedBy:user.name});
+      record("OP_SUBMIT",{operation:op,target:name});
+      addToast("Submitted","Awaiting approval",C.warning,"📤");
     }
     setModal(null);
   };
 
-  const pendingApprovals=approvalList.filter(a=>a.status==="PENDING").length;
-  const openIncidents=incidentList.filter(i=>i.status==="OPEN"||i.status==="ACKNOWLEDGED").length;
-  const criticalWLS=wlsServers.filter(s=>s.status==="CRITICAL").length;
-  const activeIssues=wlsIssues.filter(i=>i.status!=="RESOLVED").length;
+  const simulateOp=(target,op,type)=>{
+    if(type!=="wls") return;
+    const steps={RESTART:["STOPPING","STOPPED","STARTING","RUNNING"],STOP:["STOPPING","STOPPED"],START:["STARTING","RUNNING"]};
+    const id=typeof target==="string"?null:target.id;
+    if(!id) return;
+    (steps[op]||[]).forEach((st,i)=>setTimeout(()=>{
+      setWls(p=>p.map(s=>s.id===id?{...s,status:st,operationStatus:st==="RUNNING"?null:st}:s));
+      termLine(st==="RUNNING"?"[OK] "+target.name+" is RUNNING":"[INFO] "+target.name+" → "+st);
+    },i*2000));
+  };
+
+  // ─── Tab routing ─────────────────────────────────────────────────────────
+  const changeTab=(id,label)=>{ setTab(id); record("TAB_VISIT",{tab:label,description:user.name+" visited "+label}); };
+
+  const pendingApprovals = approvalList.filter(a=>a.status==="PENDING").length;
+  const openIncidents    = incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status)).length;
+  const criticalWLS      = wls.filter(s=>s.status==="CRITICAL").length;
 
   const ALL_TABS=[
-    {id:"overview",label:"🌐 Overview",roles:["admin","operator","approver","viewer"]},
-    {id:"weblogic",label:"⚡ WebLogic",roles:["admin","operator","viewer"]},
-    {id:"compute",label:"💻 Compute",roles:["admin","operator","viewer"]},
-    {id:"database",label:"🗄️ Database",roles:["admin","operator","viewer"]},
-    {id:"network",label:"🔌 Network",roles:["admin","operator","viewer"]},
-    {id:"incidents",label:`🚨 Incidents${openIncidents>0?` (${openIncidents})`:""}`,roles:["admin","operator","approver","viewer"]},
-    {id:"maintenance",label:"🔧 Maintenance",roles:["admin","operator"]},
-    {id:"tickets",label:`🎫 Tickets${ticketList.filter(t=>t.status==="OPEN").length>0?` (${ticketList.filter(t=>t.status==="OPEN").length})`:""}`,roles:["admin","operator","approver"]},
-    {id:"patches",label:"📦 Patches",roles:["admin","operator"]},
-    {id:"sla",label:"⏱️ SLA",roles:["admin","operator","viewer"]},
-    {id:"capacity",label:"📈 Capacity",roles:["admin","operator","viewer"]},
-    {id:"dr",label:"🔁 DR Readiness",roles:["admin","operator","viewer"]},
-    {id:"oncall",label:"👨‍💼 On-Call",roles:["admin","operator","viewer"]},
-    {id:"deployments",label:"🚀 Deployments",roles:["admin","operator","viewer"]},
-    {id:"cost",label:"💰 Cost",roles:["admin","viewer"]},
-    {id:"security",label:"🔐 Security",roles:["admin","viewer"]},
-    {id:"alerts",label:"🔔 Alert Config",roles:["admin"]},
-    {id:"operations",label:"⚙️ Operations",roles:["admin","operator"]},
-    {id:"approvals",label:`✅ Approvals${pendingApprovals>0?` (${pendingApprovals})`:""}`,roles:["admin","approver"]},
-    {id:"issues",label:`🔥 Issues${activeIssues>0?` (${activeIssues})`:""}`,roles:["admin","operator","viewer"]},
-    {id:"autohealing",label:"🔄 Auto-Heal",roles:["admin","operator"]},
-    {id:"audit",label:"📋 Audit",roles:["admin","approver","viewer"]},
+    {id:"overview",   label:"Overview",       roles:["admin","operator","approver","viewer"]},
+    {id:"weblogic",   label:"WebLogic",       roles:["admin","operator","viewer"]},
+    {id:"deployments",label:"Deployments",    roles:["admin","operator","viewer"]},
+    {id:"pipeline",   label:"Pipeline",       roles:["admin","operator"]},
+    {id:"pdc-monitor",label:"PDC App",        roles:["admin","operator","viewer"]},
+    {id:"operations", label:"Operations",     roles:["admin","operator"]},
+    {id:"approvals",  label:"Approvals"+(pendingApprovals>0?" ("+pendingApprovals+")":" "), roles:["admin","approver"]},
+    {id:"incidents",  label:"Incidents"+(openIncidents>0?" ("+openIncidents+")":" "),  roles:["admin","operator","approver","viewer"]},
+    {id:"oncall",     label:"On-Call",        roles:["admin","operator","viewer"]},
+    {id:"dr",         label:"DR",             roles:["admin","operator","viewer"]},
+    {id:"patches",    label:"Patches",        roles:["admin","operator"]},
+    {id:"cost",       label:"Cost",           roles:["admin","viewer"]},
+    {id:"visitors",   label:"Visitors",       roles:["admin"]},
+    {id:"feedback",   label:"Feedback"+(feedbackList.length>0?" ("+feedbackList.length+")":" "), roles:["admin","approver"]},
+    {id:"activity",   label:"Activity",       roles:["admin","approver"]},
+    {id:"audit",      label:"Audit",          roles:["admin","approver"]},
+    {id:"wls-setup",  label:"⚙ WLS Setup",    roles:["admin"]},
   ].filter(t=>t.roles.includes(user.role));
 
-  const sharedProps={C,wlsServers,compute,databases,lbs,wlsIssues,setWlsIssues,approvalList,auditList,incidentList,maintenanceList,ticketList,user,handleOp,termLines,setTermLines,executeOp,addToast,emailAlerts};
+  const sp={C,wls,deployments,setDeployments,approvalList,auditList,incidentList,activityList,visitorList,feedbackList,user,handleOp,termLines,setTermLines,addToast,record,realMode,proxyStatus,loadRealDeployments};
 
-  return (
-    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif",color:C.text,transition:"background .3s,color .3s"}}>
-      <style>{`*{box-sizing:border-box}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${C.border};border-radius:3px}input,textarea,select,button{font-family:'DM Sans',sans-serif}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes pr{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.5);opacity:0}}`}</style>
+  return <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif",color:C.text}}>
+    <style>{`*{box-sizing:border-box}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${C.dim};border-radius:3px}input,textarea,select,button{font-family:'DM Sans',sans-serif}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes pr{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.5);opacity:0}}`}</style>
+    <ToastContainer toasts={toasts} dismiss={id=>setToasts(p=>p.filter(t=>t.id!==id))}/>
+    {modal&&<ApprovalModal op={modal.op} target={typeof modal.target==="string"?modal.target:modal.target.name} user={user} onConfirm={confirmOp} onCancel={()=>setModal(null)} C={C} record={record}/>}
+    {showChatbot&&<ChatbotPanel onClose={()=>setShowChatbot(false)} C={C} wls={wls} deployments={deployments} incidentList={incidentList} record={record} user={user} realMode={realMode}/>}
 
-      <ToastContainer toasts={toasts} dismiss={id=>setToasts(prev=>prev.filter(t=>t.id!==id))}/>
-      {modal&&<ApprovalModal op={modal.op} target={typeof modal.target==="string"?modal.target:modal.target.name} user={user} onConfirm={confirmOp} onCancel={()=>setModal(null)} C={C}/>}
-      {showChatbot&&<ChatbotPanel onClose={()=>setShowChatbot(false)} C={C} wlsServers={wlsServers} compute={compute} databases={databases} incidentList={incidentList}/>}
+    {/* Chatbot Btn */}
+    <button onClick={()=>setShowChatbot(!showChatbot)} style={{position:"fixed",bottom:24,right:24,zIndex:500,width:52,height:52,borderRadius:"50%",background:C.red,border:"none",cursor:"pointer",fontSize:22,boxShadow:"0 4px 16px rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center"}} title="OCI Assistant">🤖</button>
 
-      {/* Floating Chatbot Button */}
-      <button onClick={()=>setShowChatbot(!showChatbot)} style={{position:"fixed",bottom:24,right:24,zIndex:500,width:54,height:54,borderRadius:"50%",background:G.purple,border:"none",cursor:"pointer",fontSize:24,boxShadow:"0 4px 20px rgba(213,0,249,0.4)",display:"flex",alignItems:"center",justifyContent:"center",transition:"transform .2s"}}
-        title="OCI Assistant">🤖</button>
-
-      <header style={{background:C.headerBg,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:100,boxShadow:`0 2px 20px ${C.shadow}`}}>
-        <div style={{maxWidth:1800,margin:"0 auto",padding:"0 16px"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",height:52}}>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:32,height:32,background:G.oci,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,boxShadow:`0 0 16px #C7463450`}}>☁️</div>
-              <div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:800,color:"#e8eef8",lineHeight:1}}>GSC OCI Control Platform</div>
-                <div style={{fontSize:9,color:"#4a6080",letterSpacing:1.5,textTransform:"uppercase"}}>Global Service Centre · Oracle Cloud Infrastructure</div>
-              </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {criticalWLS>0&&<div style={{display:"flex",alignItems:"center",gap:5,background:`${C.danger}20`,border:`1px solid ${C.danger}44`,borderRadius:20,padding:"3px 10px"}}><Pulse color={C.danger} size={6}/><span style={{fontSize:11,fontWeight:700,color:C.danger}}>{criticalWLS} CRITICAL</span></div>}
-              {openIncidents>0&&<div style={{background:`${C.orange}20`,border:`1px solid ${C.orange}44`,borderRadius:20,padding:"3px 10px",fontSize:11,fontWeight:700,color:C.orange}}>{openIncidents} Incidents</div>}
-              {emailAlerts&&<div style={{background:`${C.green}15`,border:`1px solid ${C.green}33`,borderRadius:20,padding:"3px 10px",fontSize:11,color:C.green}}>📧 Alerts ON</div>}
-              <ThemeToggle isDark={isDark} toggle={toggleTheme}/>
-              <div style={{display:"flex",alignItems:"center",gap:7,background:C.card,border:`1px solid ${C.border}`,borderRadius:20,padding:"4px 12px"}}>
-                <div style={{width:20,height:20,borderRadius:"50%",background:G.oci,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff"}}>{user.initials}</div>
-                <span style={{fontSize:12,fontWeight:600,color:C.text}}>{user.name}</span>
-                <Badge text={ROLES[user.role]} color={C.blue}/>
-              </div>
-              <Btn color={C.red} onClick={onLogout} sm C={C}>Sign Out</Btn>
-            </div>
+    {/* Oracle Header */}
+    <header style={{background:C.headerBg,borderBottom:"1px solid "+C.border,position:"sticky",top:0,zIndex:100}}>
+      <div style={{padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:50,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          <div style={{fontWeight:800,fontSize:18,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
+          <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600}}>GSC OCI Control Platform</div>
+          {/* Real/Sim indicator */}
+          <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.1)",borderRadius:4,padding:"3px 10px",fontSize:11}}>
+            <Pulse color={proxyStatus==="connected"?C.success:proxyStatus==="checking"?C.blue:C.warning} size={6}/>
+            <span style={{color:"rgba(255,255,255,.8)",fontWeight:700}}>{proxyStatus==="connected"?"LIVE WLS":proxyStatus==="checking"?"CONNECTING":"SIMULATED"}</span>
           </div>
         </div>
-        <div style={{maxWidth:1800,margin:"0 auto",padding:"0 16px",display:"flex",overflowX:"auto",borderTop:`1px solid ${C.border}`}}>
-          {ALL_TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"8px 13px",background:"transparent",border:"none",borderBottom:tab===t.id?`2px solid ${C.red}`:"2px solid transparent",color:tab===t.id?C.red:C.muted,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",transition:"all .2s"}}>{t.label}</button>)}
-        </div>
-      </header>
-
-      <main style={{maxWidth:1800,margin:"0 auto",padding:"20px 16px",animation:"slideIn .25s ease"}}>
-        {tab==="overview"&&<OverviewTab {...sharedProps}/>}
-        {tab==="weblogic"&&<WebLogicTab {...sharedProps}/>}
-        {tab==="compute"&&<ComputeTab {...sharedProps}/>}
-        {tab==="database"&&<DatabaseTab {...sharedProps}/>}
-        {tab==="network"&&<NetworkTab {...sharedProps}/>}
-        {tab==="incidents"&&<IncidentsTab {...sharedProps}/>}
-        {tab==="maintenance"&&<MaintenanceTab {...sharedProps}/>}
-        {tab==="tickets"&&<TicketsTab {...sharedProps}/>}
-        {tab==="patches"&&<PatchesTab {...sharedProps}/>}
-        {tab==="sla"&&<SLATab {...sharedProps}/>}
-        {tab==="capacity"&&<CapacityTab {...sharedProps}/>}
-        {tab==="dr"&&<DRTab {...sharedProps}/>}
-        {tab==="oncall"&&<OnCallTab {...sharedProps}/>}
-        {tab==="deployments"&&<DeploymentsTab {...sharedProps}/>}
-        {tab==="cost"&&<CostTab {...sharedProps}/>}
-        {tab==="security"&&<SecurityTab {...sharedProps}/>}
-        {tab==="alerts"&&<AlertConfigTab {...sharedProps} emailAlerts={emailAlerts} setEmailAlerts={setEmailAlerts}/>}
-        {tab==="operations"&&<OperationsTab {...sharedProps}/>}
-        {tab==="approvals"&&<ApprovalsTab {...sharedProps}/>}
-        {tab==="issues"&&<IssuesTab {...sharedProps}/>}
-        {tab==="autohealing"&&<AutoHealTab {...sharedProps}/>}
-        {tab==="audit"&&<AuditTab {...sharedProps}/>}
-      </main>
-    </div>
-  );
-}
-
-// ── SMART LOCAL CHATBOT ────────────────────────────────────
-function ChatbotPanel({onClose,C,wlsServers,compute,databases,incidentList}){
-  const [messages,setMessages]=useState([{role:"assistant",content:"👋 Hi! I'm your OCI Assistant. I can answer questions about your live infrastructure — server status, incidents, performance issues, recommendations and more! Try asking me something below."}]);
-  const [input,setInput]=useState("");
-  const [typing,setTyping]=useState(false);
-  const msgRef=useRef(null);
-  useEffect(()=>{if(msgRef.current)msgRef.current.scrollTop=msgRef.current.scrollHeight;},[messages]);
-
-  const buildAnswer=(q)=>{
-    const ql=q.toLowerCase();
-    const critical=wlsServers.filter(s=>s.status==="CRITICAL");
-    const warning=wlsServers.filter(s=>s.status==="WARNING");
-    const running=wlsServers.filter(s=>s.status==="RUNNING");
-    const stopped=wlsServers.filter(s=>s.status==="STOPPED");
-    const avgCpu=Math.round(wlsServers.reduce((a,s)=>a+s.cpu,0)/wlsServers.length);
-    const avgJvm=Math.round(wlsServers.reduce((a,s)=>a+s.jvmHeap,0)/wlsServers.length);
-    const openInc=incidentList.filter(i=>i.status==="OPEN"||i.status==="ACKNOWLEDGED");
-    const compRunning=compute.filter(c=>c.status==="RUNNING");
-
-    // Status queries
-    if(ql.includes("status")||ql.includes("all server")||ql.includes("overview")){
-      let msg=`📊 **Infrastructure Status**\n\n**WebLogic Servers (${wlsServers.length} total):**\n`;
-      wlsServers.forEach(s=>msg+=`• ${s.name} — ${s.status} | CPU:${s.cpu}% | JVM:${s.jvmHeap}% | MEM:${s.mem}%\n`);
-      msg+=`\n**Compute:** ${compRunning.length}/${compute.length} running`;
-      msg+=`\n**Databases:** ${databases.filter(d=>d.status==="AVAILABLE").length}/${databases.length} available`;
-      msg+=`\n**Open Incidents:** ${openInc.length}`;
-      return msg;
-    }
-
-    // Critical/attention queries
-    if(ql.includes("critical")||ql.includes("attention")||ql.includes("problem")||ql.includes("issue")||ql.includes("urgent")){
-      if(critical.length===0&&warning.length===0)return "✅ Good news! All WebLogic servers are healthy. No critical or warning states detected right now.";
-      let msg="🚨 **Servers Needing Attention:**\n\n";
-      critical.forEach(s=>{
-        msg+=`🔴 **${s.name}** — CRITICAL\n`;
-        if(s.cpu>=92)msg+=`  • CPU at ${s.cpu}% — dangerously high\n`;
-        if(s.jvmHeap>=95)msg+=`  • JVM Heap at ${s.jvmHeap}% — OutOfMemoryError risk!\n`;
-        if(s.mem>=95)msg+=`  • Memory at ${s.mem}% — critical\n`;
-        msg+=`  • Recommended: Immediate restart or heap increase\n\n`;
-      });
-      warning.forEach(s=>{
-        msg+=`⚠️ **${s.name}** — WARNING\n`;
-        if(s.cpu>=75)msg+=`  • CPU at ${s.cpu}%\n`;
-        if(s.jvmHeap>=82)msg+=`  • JVM Heap at ${s.jvmHeap}%\n`;
-        msg+=`  • Recommended: Monitor closely, consider restart\n\n`;
-      });
-      return msg;
-    }
-
-    // JVM / heap queries
-    if(ql.includes("jvm")||ql.includes("heap")||ql.includes("memory leak")||ql.includes("outofmemory")){
-      const highJvm=wlsServers.filter(s=>s.jvmHeap>80).sort((a,b)=>b.jvmHeap-a.jvmHeap);
-      if(highJvm.length===0)return "✅ All JVM Heap levels are healthy (below 80%). No action needed.";
-      let msg=`💾 **JVM Heap Analysis:**\n\nAverage Heap: ${avgJvm}%\n\n`;
-      highJvm.forEach(s=>msg+=`• ${s.name}: ${s.jvmHeap}% heap | GC Time: ${s.gcTime}ms\n`);
-      msg+=`\n**Recommendations:**\n`;
-      msg+=`• Increase -Xmx to 4GB for servers >90% heap\n`;
-      msg+=`• Switch to G1GC: -XX:+UseG1GC -XX:MaxGCPauseMillis=200\n`;
-      msg+=`• Review session timeout settings\n`;
-      msg+=`• Consider adding a new managed server (WLS-PROD-05) for load balancing`;
-      return msg;
-    }
-
-    // CPU queries
-    if(ql.includes("cpu")||ql.includes("processor")||ql.includes("performance")){
-      const highCpu=wlsServers.filter(s=>s.cpu>70).sort((a,b)=>b.cpu-a.cpu);
-      let msg=`⚡ **CPU Performance Analysis:**\n\nAverage CPU: ${avgCpu}%\n\n`;
-      if(highCpu.length===0){msg+="✅ All servers have healthy CPU utilization below 70%.";return msg;}
-      highCpu.forEach(s=>msg+=`• ${s.name}: ${s.cpu}% CPU | Threads: ${s.threads}/${s.maxThreads}\n`);
-      msg+=`\n**Recommendations:**\n`;
-      msg+=`• Profile hot methods using JVM profiler\n`;
-      msg+=`• Review thread pool configuration\n`;
-      msg+=`• Check for synchronization bottlenecks\n`;
-      msg+=`• Consider increasing maxThreads for high-load servers`;
-      return msg;
-    }
-
-    // Incident queries
-    if(ql.includes("incident")||ql.includes("p1")||ql.includes("p2")||ql.includes("ticket")){
-      if(openInc.length===0)return "✅ No open incidents right now. All incidents are resolved or closed.";
-      let msg=`🚨 **Open Incidents (${openInc.length}):**\n\n`;
-      openInc.forEach(i=>msg+=`• [${i.priority}] ${i.title||"Untitled"} — ${i.status}\n  Assigned: ${i.assignee||"Unassigned"}\n\n`);
-      msg+=`**Note:** P1 incidents have a 1-hour SLA, P2 = 4 hours, P3 = 8 hours.`;
-      return msg;
-    }
-
-    // DR queries
-    if(ql.includes("dr")||ql.includes("disaster")||ql.includes("failover")||ql.includes("rto")||ql.includes("rpo")){
-      return `🔁 **DR Readiness Status:**\n\n• DR Score: 87.5% (7/8 checks passing)\n• RTO: ~15 minutes\n• RPO: ~5 minutes\n• DR-ADB-01: Synchronized (lag: 2s)\n• WLS-DR-01: STANDBY mode — ready\n• DR-VCN: IPSec tunnel active\n\n⚠️ **Action needed:** Update runbook — last updated 3 months ago.\n\n**To initiate failover:** Go to DR Readiness tab → Run DR Test to validate.`;
-    }
-
-    // Cost queries
-    if(ql.includes("cost")||ql.includes("budget")||ql.includes("spend")||ql.includes("billing")){
-      return `💰 **Cost Summary:**\n\n• Month Budget: ₹1,50,000\n• Month Spend: ₹98,420 (65.6% used)\n• Last Month: ₹1,02,300\n• Forecast: ₹1,12,000\n\n**Top cost drivers:**\n• Compute: ₹42,000 (43%)\n• Autonomous DB: ₹28,000 (28%)\n• Kubernetes: ₹7,800 (8%)\n\n✅ Currently under budget. Forecasted to save ~₹38,000 vs budget.`;
-    }
-
-    // Thread queries
-    if(ql.includes("thread")||ql.includes("deadlock")||ql.includes("stuck")){
-      const highThreads=wlsServers.filter(s=>s.threads/s.maxThreads>0.8).sort((a,b)=>(b.threads/b.maxThreads)-(a.threads/a.maxThreads));
-      if(highThreads.length===0)return "✅ All thread pools are healthy. No thread starvation detected.";
-      let msg="🧵 **Thread Pool Analysis:**\n\n";
-      highThreads.forEach(s=>msg+=`• ${s.name}: ${s.threads}/${s.maxThreads} threads (${Math.round(s.threads/s.maxThreads*100)}%)\n`);
-      msg+=`\n**Recommendations:**\n• Take thread dump: Operations tab → THREADDUMP\n• Look for BLOCKED threads in the dump\n• Review DB connection pool size\n• Add timeout to long-running transactions\n• Consider increasing maxThreads to 300`;
-      return msg;
-    }
-
-    // Compute queries
-    if(ql.includes("compute")||ql.includes("vm")||ql.includes("instance")){
-      let msg=`💻 **Compute Instances (${compute.length} total):**\n\n`;
-      compute.forEach(c=>msg+=`• ${c.name} [${c.status}] — ${c.role}\n  ${c.shape} | CPU:${c.cpu}% | MEM:${c.mem}%\n\n`);
-      return msg;
-    }
-
-    // Database queries
-    if(ql.includes("database")||ql.includes("adb")||ql.includes("atp")||ql.includes("adw")||ql.includes("connection")){
-      let msg=`🗄️ **Database Status:**\n\n`;
-      databases.forEach(d=>msg+=`• ${d.name} [${d.status}]\n  Type: ${d.type} | CPU:${d.cpu}% | Connections:${d.connections}/${d.maxConns}\n\n`);
-      msg+=`**Tip:** If connections are above 80%, consider increasing OCPU or optimizing connection pooling.`;
-      return msg;
-    }
-
-    // Recommendation queries
-    if(ql.includes("recommend")||ql.includes("fix")||ql.includes("suggest")||ql.includes("what should")||ql.includes("how to")){
-      let msg="💡 **Top Recommendations Right Now:**\n\n";
-      let count=1;
-      critical.forEach(s=>{msg+=`${count++}. 🔴 Restart ${s.name} — CPU:${s.cpu}% JVM:${s.jvmHeap}% (CRITICAL)\n`;});
-      warning.forEach(s=>{msg+=`${count++}. ⚠️ Monitor ${s.name} closely — CPU:${s.cpu}% JVM:${s.jvmHeap}%\n`;});
-      if(avgJvm>75)msg+=`${count++}. 💾 Increase JVM heap on all production servers to -Xmx4g\n`;
-      if(avgCpu>65)msg+=`${count++}. ⚡ Review thread pool sizes across production servers\n`;
-      msg+=`${count++}. 📦 Apply pending critical security patches (CVE-2024-20918)\n`;
-      msg+=`${count++}. 📋 Update DR runbook — currently outdated\n`;
-      if(count===1)msg+="✅ Infrastructure looks healthy! Keep monitoring.";
-      return msg;
-    }
-
-    // Help query
-    if(ql.includes("help")||ql.includes("what can")||ql.includes("commands")){
-      return `🤖 **I can help you with:**\n\n• "What's the status of all servers?"\n• "Which servers need attention?"\n• "Analyze JVM heap issues"\n• "Show CPU performance"\n• "What are open incidents?"\n• "DR readiness status"\n• "Cost and budget summary"\n• "Thread pool analysis"\n• "Database connection status"\n• "Give me recommendations"\n• "How to fix high CPU?"\n\nJust ask in plain English! 😊`;
-    }
-
-    // Restart/operation queries
-    if(ql.includes("restart")||ql.includes("stop")||ql.includes("start")){
-      return `⚙️ **To restart/stop/start a server:**\n\n1. Go to the **WebLogic** tab\n2. Click on the server card\n3. Click **RESTART**, **STOP** or **START**\n4. Fill in the reason form\n\n**Or** go to **Operations** tab to submit for any resource.\n\n⚠️ Note: OPS Engineers need Change Approver sign-off. Admins can execute directly.`;
-    }
-
-    // Uptime / SLA
-    if(ql.includes("uptime")||ql.includes("sla")||ql.includes("availability")){
-      return `⏱️ **SLA & Uptime Summary:**\n\n• WLS-PROD-01: 99.97% ✅ MET\n• WLS-PROD-02: 99.94% ✅ MET\n• WLS-PROD-03: 99.75% ⚠️ AT RISK\n• WLS-PROD-04: 99.45% 🔴 BREACHED\n• PROD-ADB-01: 99.99% ✅ MET\n\n**Overall:** 99.84% average uptime this month\n\nView full details in the **SLA & Uptime** tab.`;
-    }
-
-    // Default fallback
-    return `🤖 I'm not sure about that specific query. Here are things I can help with:\n\n• Server status & health\n• JVM heap & performance analysis\n• Incident management\n• DR readiness\n• Cost & budget\n• Recommendations & fixes\n\nTry asking: "Which servers need attention?" or "Give me recommendations"`;
-  };
-
-  const send=()=>{
-    if(!input.trim()||typing)return;
-    const q=input.trim();
-    setMessages(prev=>[...prev,{role:"user",content:q}]);
-    setInput("");
-    setTyping(true);
-    // Simulate typing delay for natural feel
-    setTimeout(()=>{
-      const answer=buildAnswer(q);
-      setMessages(prev=>[...prev,{role:"assistant",content:answer}]);
-      setTyping(false);
-    },600+Math.random()*400);
-  };
-
-  const quickQuestions=["Which servers need attention?","Analyze JVM heap issues","Show open incidents","Give me recommendations","DR readiness status"];
-
-  return (
-    <div style={{position:"fixed",bottom:90,right:24,zIndex:999,width:380,height:540,background:C.card,border:`1px solid ${C.purple}44`,borderRadius:20,boxShadow:`0 8px 40px ${C.purple}30`,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{background:G.purple,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:20}}>🤖</span>
-          <div>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"#fff"}}>OCI Assistant</div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.7)"}}>Live infrastructure analysis · Always online</div>
+          {criticalWLS>0&&<div style={{display:"flex",alignItems:"center",gap:5,background:C.danger+"25",border:"1px solid "+C.danger+"55",borderRadius:4,padding:"3px 10px"}}><Pulse color={C.danger} size={6}/><span style={{fontSize:11,fontWeight:700,color:C.danger}}>{criticalWLS} CRITICAL</span></div>}
+          <button onClick={toggleTheme} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:4,padding:"5px 12px",cursor:"pointer",color:"#fff",fontSize:12,fontWeight:600}}>{isDark?"☀️":"🌙"}</button>
+          <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:4,padding:"4px 12px"}}>
+            <div style={{width:22,height:22,borderRadius:"50%",background:C.red,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",border:"2px solid rgba(255,255,255,.4)"}}>{user.initials}</div>
+            <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{user.name}</span>
           </div>
+          <Btn color="#fff" outline onClick={()=>{record("LOGOUT",{description:user.name+" signed out"});onLogout();}} sm C={C}>Sign Out</Btn>
         </div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,0.2)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",color:"#fff",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
       </div>
+      <ConnectionBanner status={proxyStatus} proxyUrl={PROXY_URL} C={C}/>
+      <div style={{padding:"0 20px",display:"flex",overflowX:"auto",background:isDark?"#1a1a1a":"#b83020"}}>
+        {ALL_TABS.map(t=><button key={t.id} onClick={()=>changeTab(t.id,t.label)} style={{padding:"9px 14px",background:"transparent",border:"none",borderBottom:tab===t.id?"3px solid #fff":"3px solid transparent",color:tab===t.id?"#fff":"rgba(255,255,255,.6)",cursor:"pointer",fontSize:12,fontWeight:tab===t.id?700:500,whiteSpace:"nowrap",transition:"all .2s"}}>{t.label}</button>)}
+      </div>
+    </header>
 
-      <div ref={msgRef} style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
-        {messages.map((m,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-            <div style={{maxWidth:"90%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?G.purple:C.card2,color:m.role==="user"?"#fff":C.text,fontSize:12,lineHeight:1.6,border:m.role==="user"?"none":`1px solid ${C.border}`,whiteSpace:"pre-line"}}>
-              {m.content}
-            </div>
-          </div>
-        ))}
-        {typing&&(
-          <div style={{display:"flex",justifyContent:"flex-start"}}>
-            <div style={{padding:"10px 16px",borderRadius:"16px 16px 16px 4px",background:C.card2,border:`1px solid ${C.border}`,fontSize:13,color:C.muted,display:"flex",gap:4,alignItems:"center"}}>
-              <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.purple,animation:"blink .7s ease infinite"}}/>
-              <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.purple,animation:"blink .7s ease .2s infinite"}}/>
-              <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.purple,animation:"blink .7s ease .4s infinite"}}/>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div style={{padding:"8px 12px",borderTop:`1px solid ${C.border}`,flexShrink:0}}>
-        <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
-          {quickQuestions.map(q=>(
-            <button key={q} onClick={()=>setInput(q)} style={{padding:"3px 9px",background:`${C.purple}15`,border:`1px solid ${C.purple}33`,borderRadius:20,color:C.purple,fontSize:10,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>{q.slice(0,22)}…</button>
-          ))}
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask about your infrastructure..." style={{flex:1,padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          <button onClick={send} disabled={typing||!input.trim()} style={{padding:"9px 16px",background:G.purple,border:"none",borderRadius:10,color:"#fff",cursor:typing?"not-allowed":"pointer",fontWeight:700,fontSize:13,opacity:typing||!input.trim()?0.5:1}}>Send</button>
-        </div>
-      </div>
-    </div>
-  );
+    <main style={{maxWidth:1800,margin:"0 auto",padding:"24px 20px",animation:"slideIn .25s ease"}}>
+      {tab==="overview"    && <OverviewTab {...sp}/>}
+      {tab==="weblogic"    && <WebLogicTab {...sp}/>}
+      {tab==="deployments" && <DeploymentsTab {...sp}/>}
+      {tab==="pipeline"    && <PipelineTab {...sp}/>}
+      {tab==="pdc-monitor" && <PDCMonitorTab {...sp}/>}
+      {tab==="operations"  && <OperationsTab {...sp}/>}
+      {tab==="approvals"   && <ApprovalsTab {...sp}/>}
+      {tab==="incidents"   && <IncidentsTab {...sp}/>}
+      {tab==="oncall"      && <OnCallTab {...sp}/>}
+      {tab==="dr"          && <DRTab {...sp}/>}
+      {tab==="patches"     && <PatchesTab {...sp}/>}
+      {tab==="cost"        && <CostTab {...sp}/>}
+      {tab==="visitors"    && <VisitorsTab {...sp}/>}
+      {tab==="feedback"    && <FeedbackTab {...sp}/>}
+      {tab==="activity"    && <ActivityTab {...sp}/>}
+      {tab==="audit"       && <AuditTab {...sp}/>}
+      {tab==="wls-setup"   && <WLSSetupTab {...sp}/>}
+    </main>
+    <button onClick={()=>changeTab("feedback","Feedback")} style={{position:"fixed",bottom:24,left:24,zIndex:500,padding:"8px 18px",background:C.card,border:"1px solid "+C.border,borderRadius:4,cursor:"pointer",fontSize:13,fontWeight:700,color:C.text,boxShadow:"0 2px 8px "+C.shadow}}>💬 Feedback</button>
+  </div>;
 }
 
-// ── ALERT CONFIG TAB ───────────────────────────────────────
-function AlertConfigTab({C,emailAlerts,setEmailAlerts,addToast}){
-  const [email,setEmail]=useState(ALERT_EMAIL);
-  const [thresholds,setThresholds]=useState({cpu:85,mem:90,jvm:92,gcTime:100});
-  const [rules,setRules]=useState([
-    {id:1,name:"Critical Server Alert",trigger:"Server status → CRITICAL",action:"Email + Auto P1 Incident",enabled:true,lastTriggered:"2 min ago"},
-    {id:2,name:"High CPU Warning",trigger:"CPU > 85% for 5 min",action:"Email notification",enabled:true,lastTriggered:"Never"},
-    {id:3,name:"JVM Heap Critical",trigger:"JVM Heap > 92%",action:"Email + Auto-heal trigger",enabled:true,lastTriggered:"10 min ago"},
-    {id:4,name:"Pending Approval",trigger:"New approval request",action:"Email to approvers",enabled:true,lastTriggered:"1 hr ago"},
-    {id:5,name:"P1 Incident Created",trigger:"Priority 1 incident",action:"Email all roles",enabled:true,lastTriggered:"Never"},
-    {id:6,name:"Daily Health Report",trigger:"Every day 8:00 AM",action:"Summary email",enabled:false,lastTriggered:"Never"},
-  ]);
-  const toggle=(id)=>setRules(prev=>prev.map(r=>r.id===id?{...r,enabled:!r.enabled}:r));
+// ─── Overview Tab ──────────────────────────────────────────────────────────
+function OverviewTab({C,wls,deployments,incidentList,approvalList,auditList,realMode,proxyStatus}) {
+  const running=wls.filter(s=>s.status==="RUNNING").length;
+  const critical=wls.filter(s=>s.status==="CRITICAL").length;
+  const openInc=incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status)).length;
+  const activeDeploys=deployments.filter(d=>d.state==="ACTIVE").length;
+  return <div>
+    <div style={{marginBottom:20}}>
+      <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Infrastructure Overview</h2>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><Pulse color={C.success} size={6}/><span style={{fontSize:12,color:C.muted}}>{realMode?"Live data from WLS REST API":"Simulation mode"} · Updates every 3s</span></div>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:20}}>
+      {[{l:"WLS Running",v:running+"/"+wls.length,c:C.red,i:"⚡"},{l:"Active Deploys",v:activeDeploys+"/"+deployments.length,c:C.blue,i:"🚀"},{l:"Critical",v:critical,c:critical>0?C.danger:C.success,i:"🔴"},{l:"Incidents",v:openInc,c:openInc>0?C.warning:C.success,i:"🚨"},{l:"Pending Approvals",v:(approvalList||[]).filter(a=>a.status==="PENDING").length,c:C.warning,i:"⏳"},{l:"Proxy",v:proxyStatus==="connected"?"LIVE":"SIM",c:proxyStatus==="connected"?C.success:C.warning,i:"🔗"}].map(s=><Card key={s.l} color={s.c} style={{padding:"14px 16px"}} C={C}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:22,fontWeight:700,color:s.c,lineHeight:1}}>{s.v}</div><div style={{fontSize:10,color:C.muted,marginTop:6,textTransform:"uppercase",letterSpacing:0.8}}>{s.l}</div></div>
+          <span style={{fontSize:18,opacity:.5}}>{s.i}</span>
+        </div>
+      </Card>)}
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16}}>
+      <Card color={C.red} C={C}>
+        <div style={{fontWeight:700,marginBottom:14,fontSize:14,display:"flex",justifyContent:"space-between"}}>
+          <span>⚡ WebLogic Servers</span>
+          <div style={{display:"flex",alignItems:"center",gap:5}}><Pulse color={C.success} size={6}/><span style={{fontSize:11,color:C.muted,fontWeight:400}}>Live</span></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {wls.map(s=><div key={s.id} style={{background:C.card2,border:"1px solid "+C.border,borderLeft:"3px solid "+scol(s.status,C),borderRadius:4,padding:"10px 12px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}><Pulse color={scol(s.status,C)} size={6}/><span style={{fontWeight:700,fontSize:12,fontFamily:"monospace",color:C.text}}>{s.name}</span></div>
+              <Badge text={s.status} color={scol(s.status,C)}/>
+            </div>
+            <MetricBar value={s.cpu||0} label="CPU" warn={70} crit={85} small C={C}/>
+            <div style={{marginTop:5}}><MetricBar value={s.jvmHeap||0} label="JVM" warn={80} crit={92} small C={C}/></div>
+          </div>)}
+        </div>
+      </Card>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <Card color={C.blue} C={C}>
+          <div style={{fontWeight:700,marginBottom:10,fontSize:14}}>🚀 Deployments</div>
+          {deployments.slice(0,5).map(d=><div key={d.name} style={{padding:"7px 0",borderBottom:"1px solid "+C.border+"66"}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+              <span style={{fontWeight:600,fontSize:12,color:C.text}}>{d.name}</span>
+              <Badge text={d.state||"ACTIVE"} color={scol(d.state||"ACTIVE",C)}/>
+            </div>
+            <div style={{fontSize:10,color:C.muted}}>{d.type} · {(d.targets||[]).join(", ")}</div>
+          </div>)}
+        </Card>
+        <Card color={C.danger} C={C}>
+          <div style={{fontWeight:700,marginBottom:10,fontSize:14}}>📋 Recent Audit</div>
+          {auditList.length===0?<div style={{color:C.muted,fontSize:12}}>No activity yet.</div>:[...auditList].reverse().slice(0,4).map(a=><div key={a.id} style={{padding:"5px 0",borderBottom:"1px solid "+C.border+"66"}}>
+            <div style={{fontWeight:600,fontSize:11,color:C.text}}>{a.action}</div>
+            <div style={{color:C.muted,fontSize:10,marginTop:1}}>{a.user} · {a.time}</div>
+          </div>)}
+        </Card>
+      </div>
+    </div>
+  </div>;
+}
 
-  const testEmail=async()=>{
-    addToast("📧 Sending test email...","Check your inbox in a moment",C.blue,"📧");
-    const sent=await sendEmailAlert("Test Alert — GSC OCI Platform","This is a test alert from your GSC OCI Control Platform. Email alerts are working correctly!\n\nDashboard: https://lakhshit.in","TEST");
-    if(sent)addToast("✅ Test email sent!","Check your inbox",C.green,"✅");
-    else addToast("⚠️ Email not configured","Set up EmailJS credentials in the code",C.warning,"⚠️");
+// ─── WebLogic Tab ──────────────────────────────────────────────────────────
+function WebLogicTab({C,wls,user,handleOp,realMode,addToast}) {
+  const [sel,setSel]=useState(null);
+  const [detail,setDetail]=useState(null);
+  const [loadingDetail,setLoadingDetail]=useState(false);
+  const s=sel?wls.find(x=>x.id===sel):null;
+  const canOp=user.role==="admin"||user.role==="operator";
+
+  const loadDetail=async(name)=>{
+    if(!realMode) return;
+    setLoadingDetail(true);
+    try { const d=await wlsApi.get("/api/servers/"+name); setDetail(d.server); }
+    catch(e) { setDetail(null); }
+    finally { setLoadingDetail(false); }
   };
 
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>🔔 Alert Configuration</h2>
-      <p style={{color:C.muted,marginBottom:20,fontSize:12}}>Configure email alerts · Set thresholds · Manage notification rules</p>
+  useEffect(()=>{ if(s&&realMode) loadDetail(s.name); },[sel,realMode]);
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-        {/* Email Setup */}
-        <GlowCard color={C.blue} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:16,fontSize:15,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span>📧 Email Configuration</span>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:12,color:C.muted}}>Alerts</span>
-              <div onClick={()=>setEmailAlerts(!emailAlerts)} style={{width:40,height:22,borderRadius:11,background:emailAlerts?C.green:C.dim,cursor:"pointer",position:"relative",transition:"all .3s"}}>
-                <div style={{position:"absolute",top:2,left:emailAlerts?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .3s"}}/>
-              </div>
-            </div>
-          </div>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Alert Email Address</div>
-            <input value={email} onChange={e=>setEmail(e.target.value)} style={{width:"100%",padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-          </div>
-          <div style={{background:`${C.blue}12`,border:`1px solid ${C.blue}30`,borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12,color:C.muted}}>
-            <div style={{fontWeight:700,color:C.blue,marginBottom:6}}>📋 EmailJS Setup (Free)</div>
-            <div style={{marginBottom:3}}>1. Go to <span style={{color:C.cyan}}>emailjs.com</span> → Sign up free</div>
-            <div style={{marginBottom:3}}>2. Create an Email Service (Gmail/Outlook)</div>
-            <div style={{marginBottom:3}}>3. Create an Email Template</div>
-            <div style={{marginBottom:3}}>4. Copy Service ID, Template ID, Public Key</div>
-            <div>5. Paste in the code at the top of App.jsx</div>
-          </div>
-          <Btn grad={G.blue} color={C.blue} onClick={testEmail} style={{width:"100%"}} C={C}>📧 Send Test Email</Btn>
-        </GlowCard>
-
-        {/* Thresholds */}
-        <GlowCard color={C.orange} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:16,fontSize:15}}>⚡ Alert Thresholds</div>
-          {[["CPU Usage (%)",thresholds.cpu,"cpu",85,99],["Memory (%)",thresholds.mem,"mem",85,99],["JVM Heap (%)",thresholds.jvm,"jvm",88,99],["GC Time (ms)",thresholds.gcTime,"gcTime",50,200]].map(([label,val,key,min,max])=>(
-            <div key={key} style={{marginBottom:14}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:12}}>
-                <span style={{color:C.muted}}>{label}</span>
-                <span style={{color:C.orange,fontWeight:700}}>{val}{key==="gcTime"?"ms":"%"}</span>
-              </div>
-              <input type="range" min={min} max={max} value={val} onChange={e=>setThresholds(t=>({...t,[key]:+e.target.value}))} style={{width:"100%",accentColor:C.orange}}/>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:C.dim,marginTop:2}}>
-                <span>{min}{key==="gcTime"?"ms":"%"}</span><span>{max}{key==="gcTime"?"ms":"%"}</span>
-              </div>
-            </div>
-          ))}
-          <Btn grad={G.orange} color={C.orange} onClick={()=>addToast("✅ Thresholds saved","Alert thresholds updated",C.green,"✅")} style={{width:"100%"}} C={C}>Save Thresholds</Btn>
-        </GlowCard>
+  return <div>
+    <div style={{marginBottom:16}}>
+      <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>WebLogic Servers</h2>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <p style={{color:C.muted,margin:0,fontSize:12}}>Live JVM metrics · {wls.length} servers · Click for details</p>
+        {realMode&&<Badge text="LIVE WLS DATA" color={C.success}/>}
       </div>
-
-      {/* Alert Rules */}
-      <GlowCard color={C.purple} C={C}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:16,fontSize:15}}>📋 Alert Rules</div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {rules.map(r=>(
-            <div key={r.id} style={{background:C.card2,borderRadius:12,padding:"13px 16px",border:`1px solid ${r.enabled?C.purple+"44":C.border}`,display:"flex",gap:14,alignItems:"center"}}>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4}}>
-                  <span style={{fontWeight:700,fontSize:13,color:C.text}}>{r.name}</span>
-                  {r.enabled&&<Badge text="ACTIVE" color={C.green} dot/>}
-                </div>
-                <div style={{fontSize:11,color:C.warning,marginBottom:2}}>⚡ Trigger: {r.trigger}</div>
-                <div style={{fontSize:11,color:C.cyan,marginBottom:3}}>📧 Action: {r.action}</div>
-                <div style={{fontSize:10,color:C.muted}}>Last triggered: {r.lastTriggered}</div>
-              </div>
-              <div onClick={()=>toggle(r.id)} style={{width:40,height:22,borderRadius:11,background:r.enabled?C.green:C.dim,cursor:"pointer",position:"relative",transition:"all .3s",flexShrink:0}}>
-                <div style={{position:"absolute",top:2,left:r.enabled?20:2,width:18,height:18,borderRadius:"50%",background:"#fff",transition:"left .3s"}}/>
-              </div>
-            </div>
-          ))}
-        </div>
-      </GlowCard>
     </div>
-  );
+    <div style={{display:"grid",gridTemplateColumns:s?"1fr 360px":"1fr",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12,alignContent:"start"}}>
+        {wls.map(sv=><Card key={sv.id} color={scol(sv.status,C)} onClick={()=>setSel(sel===sv.id?null:sv.id)} style={{cursor:"pointer",padding:"14px 16px"}} C={C}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+            <div>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}><Pulse color={scol(sv.status,C)} size={7}/><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.text}}>{sv.name}</span></div>
+              <div style={{fontSize:10,color:C.muted}}>{sv.host||sv.name}</div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"flex-end"}}>
+              <Badge text={sv.status} color={scol(sv.status,C)} dot/>
+              <Badge text={sv.env||"Production"} color={sv.env==="UAT"?C.blue:sv.env==="DR"?C.teal:C.red}/>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:10}}>
+            {[["CPU",sv.cpu+"%",sv.cpu>85?C.danger:sv.cpu>70?C.warning:C.success],["MEM",sv.mem+"%",sv.mem>90?C.danger:sv.mem>75?C.warning:C.success],["JVM",sv.jvmHeap+"%",sv.jvmHeap>92?C.danger:sv.jvmHeap>80?C.warning:C.success],["THR",sv.threads,sv.threads/sv.maxThreads>.9?C.danger:sv.threads/sv.maxThreads>.75?C.warning:C.success]].map(([l,v,c])=><div key={l} style={{background:C.bg,border:"1px solid "+C.border,borderRadius:3,padding:"6px 3px",textAlign:"center"}}>
+              <div style={{fontFamily:"monospace",fontSize:11,fontWeight:700,color:c}}>{v}</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:2}}>{l}</div>
+            </div>)}
+          </div>
+          <div style={{fontSize:10,color:C.muted}}>⏱ {fmtUp(sv.uptimeSecs||0)} · WLS {sv.version}</div>
+        </Card>)}
+      </div>
+      {s&&<div style={{position:"sticky",top:90,height:"fit-content"}}>
+        <Card color={scol(s.status,C)} C={C}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:14}}>
+            <div><div style={{fontWeight:800,fontSize:16,color:C.text}}>{s.name}</div><div style={{fontSize:11,color:C.muted,fontFamily:"monospace",marginTop:3}}>{s.host}:{s.port}</div></div>
+            <button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}>✕</button>
+          </div>
+          {loadingDetail&&<div style={{textAlign:"center",padding:20,color:C.muted}}>Loading real metrics...</div>}
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+            <MetricBar value={detail?.jvm?.heapPct||s.jvmHeap||0} label="JVM Heap" warn={80} crit={92} C={C}/>
+            <MetricBar value={s.cpu||0} label="CPU" warn={70} crit={85} C={C}/>
+            <MetricBar value={s.mem||0} label="Memory" warn={75} crit={90} C={C}/>
+            {detail&&<>
+              <MetricBar value={detail.jvm?.gcTimeSec||0} max={200} label="GC Time" warn={50} crit={100} unit="s" C={C}/>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:4}}>
+                {[["Threads Idle",detail.threads?.current||0,C.cyan],["Stuck Threads",detail.threads?.stuck||0,(detail.threads?.stuck||0)>0?C.danger:C.success],["Pending Req",detail.threads?.pending||0,(detail.threads?.pending||0)>50?C.warning:C.success],["JVM Heap MB",detail.jvm?.heapUsedMB||0,C.blue]].map(([l,v,c])=><div key={l} style={{background:C.bg,border:"1px solid "+C.border,borderRadius:3,padding:"8px 10px"}}>
+                  <div style={{fontFamily:"monospace",fontSize:13,fontWeight:700,color:c}}>{v}</div>
+                  <div style={{fontSize:9,color:C.muted,marginTop:2}}>{l}</div>
+                </div>)}
+              </div>
+            </>}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+            {[["Uptime",fmtUp(s.uptimeSecs||0)],["Version",s.version],["Deployments",s.deployments||0],["Environment",s.env||"Production"]].map(([l,v])=><div key={l} style={{background:C.bg,border:"1px solid "+C.border,borderRadius:4,padding:"8px 10px"}}>
+              <div style={{fontSize:9,color:C.muted,marginBottom:2,textTransform:"uppercase"}}>{l}</div>
+              <div style={{fontSize:12,fontWeight:600,fontFamily:"monospace",color:C.text}}>{v}</div>
+            </div>)}
+          </div>
+          {canOp&&<>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Operations</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
+              {[["RESTART","🔄",C.blue],["STOP","⏹️",C.danger],["START","▶️",C.success]].map(([op,icon,color])=><Btn key={op} color={color} onClick={()=>handleOp(s,op,"wls")} style={{padding:"10px 4px",textAlign:"center",justifyContent:"center",flexDirection:"column",gap:4}} C={C}><span style={{fontSize:18}}>{icon}</span>{op}</Btn>)}
+            </div>
+            {realMode&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <Btn color={C.orange} sm onClick={async()=>{ addToast("Heap dump triggered","",C.orange,"💾"); try{await wlsApi.post("/api/heapdump/"+s.name);addToast("Heap dump done","",C.success,"✅");}catch(e){addToast("Failed",e.message,C.danger,"❌")} }} C={C}>💾 Heap Dump</Btn>
+              <Btn color={C.purple} sm onClick={async()=>{ try{const d=await wlsApi.get("/api/threads/"+s.name);addToast("Threads: "+d.threads?.executeThreadTotalCount,"Stuck: "+(d.threads?.stuckThreadCount||0),C.purple,"📋");}catch(e){addToast("Failed",e.message,C.danger,"❌")} }} C={C}>📋 Thread Dump</Btn>
+            </div>}
+            {user.role!=="admin"&&<div style={{fontSize:11,color:C.warning,marginTop:8,textAlign:"center"}}>⚠ Requires Change Approver sign-off</div>}
+          </>}
+        </Card>
+      </div>}
+    </div>
+  </div>;
 }
 
-// ── MAINTENANCE WINDOW TAB ─────────────────────────────────
-function MaintenanceTab({C,maintenanceList,wlsServers,compute,user,addToast}){
-  const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({title:"",description:"",systems:"",startDate:"",startTime:"",duration:"2",type:"Planned",approvedBy:""});
-  const allSystems=[...wlsServers.map(s=>s.name),...compute.map(c=>c.name)].join(", ");
-
-  const save=()=>{
-    if(!form.title.trim())return;
-    push(ref(db,"maintenance"),{...form,status:"SCHEDULED",createdBy:user.name,createdAt:now()});
-    setForm({title:"",description:"",systems:"",startDate:"",startTime:"",duration:"2",type:"Planned",approvedBy:""});
-    setShowForm(false);
-    addToast("📅 Maintenance scheduled","Team has been notified",C.blue,"📅");
-  };
-
-  const updateStatus=(id,status)=>update(ref(db,`maintenance/${id}`),{status});
-  const upcoming=maintenanceList.filter(m=>m.status==="SCHEDULED");
-  const active=maintenanceList.filter(m=>m.status==="IN_PROGRESS");
-  const completed=maintenanceList.filter(m=>m.status==="COMPLETED");
-
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20}}>
-        <div>
-          <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>🔧 Maintenance Windows</h2>
-          <p style={{color:C.muted,margin:0,fontSize:12}}>Schedule downtime · Notify stakeholders · Track maintenance history</p>
-        </div>
-        <Btn grad={G.blue} color={C.blue} onClick={()=>setShowForm(!showForm)} C={C}>+ Schedule Maintenance</Btn>
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:18}}>
-        {[["Scheduled",upcoming.length,C.blue,"📅"],["In Progress",active.length,C.orange,"🔧"],["Completed",completed.length,C.green,"✅"]].map(([l,v,c,i])=>(
-          <GlowCard key={l} color={c} style={{padding:"14px 16px"}} C={C}>
-            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:26,fontWeight:700,color:c}}>{v}</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:4}}>{i} {l.toUpperCase()}</div>
-          </GlowCard>
-        ))}
-      </div>
-
-      {active.length>0&&(
-        <GlowCard color={C.orange} style={{marginBottom:16}} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:15,display:"flex",alignItems:"center",gap:10}}>
-            <span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>🔧</span>Active Maintenance
-          </div>
-          {active.map(m=>(
-            <div key={m.id} style={{background:C.card2,borderRadius:10,padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${C.orange}`}}>
-              <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{m.title}</div>
-              <div style={{fontSize:12,color:C.muted,marginBottom:6}}>{m.systems}</div>
-              <div style={{display:"flex",gap:10}}>
-                <Btn grad={G.green} onClick={()=>updateStatus(m.id,"COMPLETED")} sm C={C}>✅ Mark Complete</Btn>
-              </div>
-            </div>
-          ))}
-        </GlowCard>
-      )}
-
-      {showForm&&(
-        <GlowCard color={C.blue} style={{marginBottom:16}} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:16,fontSize:15}}>Schedule Maintenance Window</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Maintenance title *" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              {["Planned","Emergency","Patching","Upgrade","DR Test"].map(t=><option key={t}>{t}</option>)}
-            </select>
-            <input value={form.startDate} onChange={e=>setForm(f=>({...f,startDate:e.target.value}))} type="date" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <input value={form.startTime} onChange={e=>setForm(f=>({...f,startTime:e.target.value}))} type="time" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <input value={form.duration} onChange={e=>setForm(f=>({...f,duration:e.target.value}))} placeholder="Duration (hours)" type="number" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <input value={form.approvedBy} onChange={e=>setForm(f=>({...f,approvedBy:e.target.value}))} placeholder="Approved by" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          </div>
-          <input value={form.systems} onChange={e=>setForm(f=>({...f,systems:e.target.value}))} placeholder={`Affected systems (e.g. ${allSystems.slice(0,40)}...)`} style={{width:"100%",padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginTop:10}}/>
-          <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description / scope of work..." rows={2} style={{width:"100%",padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",resize:"vertical",marginTop:10}}/>
-          <div style={{display:"flex",gap:10,marginTop:14}}>
-            <Btn grad={G.blue} onClick={save} C={C}>📅 Schedule</Btn>
-            <Btn onClick={()=>setShowForm(false)} C={C}>Cancel</Btn>
-          </div>
-        </GlowCard>
-      )}
-
-      <GlowCard color={C.blue} C={C}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>📅 Upcoming Maintenance</div>
-        {upcoming.length===0?<div style={{color:C.muted,fontSize:13,textAlign:"center",padding:"20px 0"}}>No maintenance scheduled.</div>
-          :upcoming.map(m=>(
-            <div key={m.id} style={{background:C.card2,borderRadius:12,padding:"14px 16px",marginBottom:10,borderLeft:`3px solid ${C.blue}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                <div>
-                  <div style={{fontWeight:700,fontSize:14,marginBottom:3}}>{m.title}</div>
-                  <div style={{display:"flex",gap:10,fontSize:11,color:C.muted,flexWrap:"wrap"}}>
-                    <span>📅 {m.startDate} {m.startTime}</span>
-                    <span>⏱ {m.duration}h</span>
-                    {m.approvedBy&&<span>✅ Approved: {m.approvedBy}</span>}
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <Badge text={m.type} color={C.blue}/>
-                  <Btn sm grad={G.orange} onClick={()=>updateStatus(m.id,"IN_PROGRESS")} C={C}>▶ Start</Btn>
-                  <Btn sm danger onClick={()=>remove(ref(db,`maintenance/${m.id}`))} C={C}>✕</Btn>
-                </div>
-              </div>
-              {m.systems&&<div style={{fontSize:11,color:C.cyan}}>🖥️ {m.systems}</div>}
-              {m.description&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>{m.description}</div>}
-            </div>
-          ))}
-      </GlowCard>
-    </div>
-  );
-}
-
-// ── TICKETS TAB ────────────────────────────────────────────
-function TicketsTab({C,ticketList,user,wlsServers,incidentList,addToast}){
-  const [showForm,setShowForm]=useState(false);
-  const [filter,setFilter]=useState("OPEN");
-  const [form,setForm]=useState({title:"",description:"",priority:"Medium",assignee:"",system:"",type:"Incident",externalRef:""});
-
-  const create=()=>{
-    if(!form.title.trim())return;
-    push(ref(db,"tickets"),{...form,status:"OPEN",createdBy:user.name,createdAt:now(),ticketId:`TKT-${Date.now().toString().slice(-6)}`});
-    setForm({title:"",description:"",priority:"Medium",assignee:"",system:"",type:"Incident",externalRef:""});
-    setShowForm(false);
-    addToast("🎫 Ticket created","New ticket added to queue",C.blue,"🎫");
-  };
-
-  const updateStatus=(id,status)=>update(ref(db,`tickets/${id}`),{status,updatedAt:now()});
-  const filtered=filter==="ALL"?ticketList:ticketList.filter(t=>t.status===filter);
-  const priorityColor={Critical:C.danger,High:C.warning,Medium:C.orange,Low:C.green};
-
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20}}>
-        <div>
-          <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>🎫 Ticket Management</h2>
-          <p style={{color:C.muted,margin:0,fontSize:12}}>JIRA/ServiceNow style ticketing · Track issues · Link to incidents</p>
-        </div>
-        <Btn grad={G.blue} color={C.blue} onClick={()=>setShowForm(!showForm)} C={C}>+ Create Ticket</Btn>
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
-        {[["Open",ticketList.filter(t=>t.status==="OPEN").length,C.danger],["In Progress",ticketList.filter(t=>t.status==="IN_PROGRESS").length,C.blue],["Resolved",ticketList.filter(t=>t.status==="RESOLVED").length,C.green],["Total",ticketList.length,C.muted]].map(([l,v,c])=>(
-          <GlowCard key={l} color={c} style={{padding:"13px 14px"}} C={C}>
-            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:24,fontWeight:700,color:c}}>{v}</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:3}}>{l.toUpperCase()}</div>
-          </GlowCard>
-        ))}
-      </div>
-
-      {showForm&&(
-        <GlowCard color={C.blue} style={{marginBottom:16}} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>Create Ticket</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Ticket title *" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              {["Incident","Change Request","Problem","Service Request","Task"].map(t=><option key={t}>{t}</option>)}
-            </select>
-            <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              {["Critical","High","Medium","Low"].map(p=><option key={p}>{p}</option>)}
-            </select>
-            <select value={form.assignee} onChange={e=>setForm(f=>({...f,assignee:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              <option value="">Assign to…</option>
-              {["Rajesh Kumar","Priya Sharma","Amit Verma","Sneha Patel"].map(n=><option key={n}>{n}</option>)}
-            </select>
-            <select value={form.system} onChange={e=>setForm(f=>({...f,system:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              <option value="">Affected System</option>
-              {wlsServers.map(s=><option key={s.id}>{s.name}</option>)}
-            </select>
-            <input value={form.externalRef} onChange={e=>setForm(f=>({...f,externalRef:e.target.value}))} placeholder="JIRA/ServiceNow Ref (optional)" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-          </div>
-          <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Describe the issue..." rows={3} style={{width:"100%",padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",resize:"vertical",marginTop:10}}/>
-          <div style={{display:"flex",gap:10,marginTop:14}}>
-            <Btn grad={G.blue} onClick={create} C={C}>🎫 Create Ticket</Btn>
-            <Btn onClick={()=>setShowForm(false)} C={C}>Cancel</Btn>
-          </div>
-        </GlowCard>
-      )}
-
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        {["OPEN","IN_PROGRESS","RESOLVED","CLOSED","ALL"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${filter===f?C.blue:C.border}`,background:filter===f?`${C.blue}20`:"transparent",color:filter===f?C.blue:C.muted,fontSize:11,cursor:"pointer",fontWeight:700}}>{f}</button>)}
-      </div>
-
-      {filtered.length===0?<GlowCard color={C.green} style={{textAlign:"center",padding:36}} C={C}><div style={{color:C.muted}}>No tickets found.</div></GlowCard>
-        :<div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {filtered.map(t=>(
-            <GlowCard key={t.id} color={priorityColor[t.priority]||C.blue} style={{padding:"14px 18px"}} C={C}>
-              <div style={{display:"flex",gap:14,alignItems:"center"}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}>
-                    <span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{t.ticketId}</span>
-                    <span style={{fontWeight:700,fontSize:14,color:C.text}}>{t.title}</span>
-                    <Badge text={t.priority} color={priorityColor[t.priority]||C.blue}/>
-                    <Badge text={t.type} color={C.blue}/>
-                    {t.externalRef&&<Badge text={t.externalRef} color={C.purple}/>}
-                  </div>
-                  <div style={{display:"flex",gap:12,fontSize:11,color:C.muted,flexWrap:"wrap"}}>
-                    {t.system&&<span>🖥️ {t.system}</span>}
-                    {t.assignee&&<span>👤 {t.assignee}</span>}
-                    <span>🕐 {t.createdAt}</span>
-                    <span>By {t.createdBy}</span>
-                  </div>
-                  {t.description&&<p style={{color:C.muted,fontSize:12,margin:"6px 0 0",lineHeight:1.4}}>{t.description}</p>}
-                </div>
-                <div style={{display:"flex",gap:8,flexShrink:0,alignItems:"center"}}>
-                  <Badge text={t.status} color={statusColor(t.status,C)}/>
-                  <select value={t.status} onChange={e=>updateStatus(t.id,e.target.value)} style={{padding:"4px 8px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
-                    {["OPEN","IN_PROGRESS","RESOLVED","CLOSED"].map(s=><option key={s}>{s}</option>)}
-                  </select>
-                  <button onClick={()=>remove(ref(db,`tickets/${t.id}`))} style={{padding:"4px 10px",background:`${C.red}15`,border:`1px solid ${C.red}33`,borderRadius:8,color:C.red,fontSize:11,cursor:"pointer",fontWeight:700}}>✕</button>
-                </div>
-              </div>
-            </GlowCard>
-          ))}
-        </div>
-      }
-    </div>
-  );
-}
-
-// ── PATCHES TAB ────────────────────────────────────────────
-function PatchesTab({C,user,addToast}){
-  const [patches,setPatches]=useState(INIT_PATCHES);
+// ─── Deployments Tab ───────────────────────────────────────────────────────
+function DeploymentsTab({C,deployments,setDeployments,wls,user,addToast,record,termLines,setTermLines,handleOp,realMode,loadRealDeployments}) {
+  const [showDeploy,setShowDeploy]=useState(false);
+  const [file,setFile]=useState(null);
+  const [appName,setAppName]=useState("");
+  const [targets,setTargets]=useState("WLS-PROD-01,WLS-PROD-02");
+  const [deploying,setDeploying]=useState(false);
   const [filter,setFilter]=useState("ALL");
-  const priorityColor={Critical:C.danger,High:C.warning,Medium:C.orange,Low:C.green};
+  const [dragOver,setDragOver]=useState(false);
+  const canDeploy=user.role==="admin"||user.role==="operator";
+  const termLine=(l)=>setTermLines(p=>[...p,l]);
 
-  const updateStatus=(id,status)=>{
-    setPatches(prev=>prev.map(p=>p.id===id?{...p,status}:p));
-    addToast(`📦 Patch ${status.toLowerCase()}`,"Patch status updated",C.green,"📦");
+  const handleFileDrop=(e)=>{
+    e.preventDefault(); setDragOver(false);
+    const f=e.dataTransfer?.files[0]||e.target.files[0];
+    if(!f) return;
+    setFile(f);
+    if(!appName) setAppName(f.name.replace(/\.(war|ear|jar)$/i,""));
+    addToast("File selected",f.name+" ("+fmtSize(f.size)+")",C.blue,"📦");
   };
 
-  const filtered=filter==="ALL"?patches:patches.filter(p=>p.status===filter||p.priority===filter);
-  const pending=patches.filter(p=>p.status==="PENDING").length;
-  const critical=patches.filter(p=>p.priority==="Critical"&&p.status==="PENDING").length;
+  const doDeploy=async()=>{
+    if(!file&&!appName) return addToast("Select a file","",C.danger,"❌");
+    if(!appName.trim()) return addToast("Enter app name","",C.danger,"❌");
+    setDeploying(true);
+    termLine("[INFO] Deploying "+appName+" to "+targets+"...");
+    record("DEPLOY",{description:user.name+" deploying "+appName+" to "+targets});
+    if(realMode&&file) {
+      try {
+        const form=new FormData();
+        form.append("file",file);
+        form.append("appName",appName);
+        form.append("targets",targets);
+        const res=await wlsApi.upload("/api/deploy",form);
+        termLine("[OK] "+res.message);
+        addToast("Deployed!",appName+" on "+targets,C.success,"🚀");
+        push(ref(db,"auditLogs"),{action:"DEPLOYED: "+appName,user:user.name,target:targets,time:nowStr(),status:"SUCCESS"});
+        if(loadRealDeployments) await loadRealDeployments();
+      } catch(e) {
+        termLine("[ERR] Deploy failed: "+e.message);
+        addToast("Deploy failed",e.message,C.danger,"❌");
+      }
+    } else {
+      // Simulated deploy
+      const targetList=targets.split(",").map(t=>t.trim());
+      ["[INFO] Uploading "+appName+"...",`[INFO] Staging on ${targets}...`,"[INFO] Deploying to managed servers...","[OK] Application synchronized","[SUCCESS] "+appName+" is ACTIVE"].forEach((l,i)=>setTimeout(()=>termLine(l),i*800));
+      setTimeout(()=>{
+        setDeployments(p=>{
+          const exists=p.find(d=>d.name===appName);
+          if(exists) return p.map(d=>d.name===appName?{...d,state:"ACTIVE",deployedAt:nowStr(),version:(parseFloat(d.version||"1.0")+0.1).toFixed(1)}:d);
+          return [...p,{name:appName,type:file?.name?.endsWith(".ear")?"EAR":file?.name?.endsWith(".jar")?"JAR":"WAR",targets:targetList,state:"ACTIVE",health:"OK",version:"1.0.0",deployedAt:nowStr(),size:file?fmtSize(file.size):"N/A"}];
+        });
+        push(ref(db,"auditLogs"),{action:"DEPLOYED: "+appName,user:user.name,target:targets,time:nowStr(),status:"SUCCESS"});
+        addToast("Deployed!",appName,C.success,"🚀");
+      },4500);
+    }
+    setDeploying(false);
+    setShowDeploy(false);
+    setFile(null);
+    setAppName("");
+  };
 
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>📦 Patch Management</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Security patches · Compliance tracking · CVE management</p>
+  const doOp=async(dep,op)=>{
+    if(!realMode) {
+      // Simulated
+      if(op==="UNDEPLOY") {
+        setDeployments(p=>p.filter(d=>d.name!==dep.name));
+        push(ref(db,"auditLogs"),{action:"UNDEPLOYED: "+dep.name,user:user.name,time:nowStr()});
+        addToast("Undeployed",dep.name,C.warning,"📦");
+        record("UNDEPLOY",{description:user.name+" undeployed "+dep.name});
+      } else if(op==="REDEPLOY") {
+        setDeployments(p=>p.map(d=>d.name===dep.name?{...d,state:"ACTIVE",deployedAt:nowStr()}:d));
+        addToast("Redeployed",dep.name,C.success,"🔄");
+      } else if(op==="STOP") {
+        setDeployments(p=>p.map(d=>d.name===dep.name?{...d,state:"PREPARED"}:d));
+        addToast("Stopped",dep.name,C.warning,"⏹️");
+      } else if(op==="START") {
+        setDeployments(p=>p.map(d=>d.name===dep.name?{...d,state:"ACTIVE"}:d));
+        addToast("Started",dep.name,C.success,"▶️");
+      }
+    } else {
+      try {
+        const paths={UNDEPLOY:"/api/undeploy/"+dep.name,REDEPLOY:"/api/redeploy/"+dep.name,STOP:"/api/stop-deployment/"+dep.name,START:"/api/start-deployment/"+dep.name};
+        const r=await wlsApi.post(paths[op]||"/api/redeploy/"+dep.name);
+        addToast(op+" complete",dep.name,C.success,"✅");
+        termLine("[OK] "+op+": "+dep.name+" — "+r.message);
+        if(loadRealDeployments) setTimeout(loadRealDeployments,2000);
+      } catch(e) { addToast(op+" failed",e.message,C.danger,"❌"); }
+    }
+  };
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
-        {[["Pending",pending,C.warning,"📦"],["Critical CVEs",critical,C.danger,"🔴"],["Scheduled",patches.filter(p=>p.status==="SCHEDULED").length,C.blue,"📅"],["Completed",patches.filter(p=>p.status==="COMPLETED").length,C.green,"✅"]].map(([l,v,c,i])=>(
-          <GlowCard key={l} color={c} style={{padding:"13px 14px"}} C={C}>
-            <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:24,fontWeight:700,color:c}}>{v}</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:4}}>{i} {l.toUpperCase()}</div>
-          </GlowCard>
-        ))}
+  const filtered=filter==="ALL"?deployments:deployments.filter(d=>d.state===filter);
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>🚀 Deployment Manager</h2>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <p style={{color:C.muted,margin:0,fontSize:12}}>Deploy, undeploy, redeploy WAR/EAR applications · {deployments.length} applications</p>
+          {realMode&&<Badge text="REAL WLS" color={C.success}/>}
+        </div>
       </div>
+      {canDeploy&&<Btn color={C.red} onClick={()=>setShowDeploy(!showDeploy)} C={C}>🚀 Deploy Application</Btn>}
+    </div>
 
-      {critical>0&&(
-        <GlowCard color={C.danger} style={{marginBottom:16}} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:14,color:C.danger}}>⚠️ Critical Security Patches Required</div>
-          {patches.filter(p=>p.priority==="Critical"&&p.status==="PENDING").map(p=>(
-            <div key={p.id} style={{background:C.card2,borderRadius:9,padding:"10px 12px",marginBottom:7,borderLeft:`3px solid ${C.danger}`}}>
-              <div style={{fontWeight:700,fontSize:13,marginBottom:3}}>{p.name}</div>
-              <div style={{display:"flex",gap:10,fontSize:11,color:C.muted,flexWrap:"wrap"}}>
-                <span style={{color:C.danger}}>⚠ CVE: {p.cve}</span>
-                <span>📅 Release: {p.releaseDate}</span>
-                <span>🖥️ {p.server}</span>
-              </div>
-            </div>
-          ))}
-        </GlowCard>
-      )}
+    {/* KPI row */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
+      {[["Active",deployments.filter(d=>d.state==="ACTIVE").length,C.success,"✅"],["Total",deployments.length,C.blue,"📦"],["Prepared",deployments.filter(d=>d.state==="PREPARED").length,C.warning,"⏸"],["Failed",deployments.filter(d=>d.state==="FAILED").length,C.danger,"❌"]].map(([l,v,c,i])=><Card key={l} color={c} style={{padding:"14px 16px"}} C={C}>
+        <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:24,fontWeight:700,color:c}}>{i} {v}</div>
+        <div style={{fontSize:11,color:C.muted,marginTop:6,textTransform:"uppercase"}}>{l}</div>
+      </Card>)}
+    </div>
 
-      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
-        {["ALL","PENDING","SCHEDULED","COMPLETED","Critical","High"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${filter===f?C.red:C.border}`,background:filter===f?`${C.red}20`:"transparent",color:filter===f?C.red:C.muted,fontSize:11,cursor:"pointer",fontWeight:700}}>{f}</button>)}
+    {/* Deploy Form */}
+    {showDeploy&&<Card color={C.red} style={{marginBottom:16}} C={C}>
+      <div style={{fontWeight:700,marginBottom:16,fontSize:16}}>🚀 Deploy New Application</div>
+      {/* Drag & Drop zone */}
+      <div
+        onDragOver={e=>{e.preventDefault();setDragOver(true)}}
+        onDragLeave={()=>setDragOver(false)}
+        onDrop={handleFileDrop}
+        onClick={()=>document.getElementById("warFileInput").click()}
+        style={{border:"2px dashed "+(dragOver?C.red:file?C.success:C.border),borderRadius:8,padding:"32px 20px",textAlign:"center",cursor:"pointer",marginBottom:14,background:dragOver?C.red+"08":file?C.success+"08":"transparent",transition:"all .2s"}}
+      >
+        <div style={{fontSize:36,marginBottom:8}}>{file?"✅":"📦"}</div>
+        {file?<><div style={{fontWeight:700,fontSize:14,color:C.success,marginBottom:4}}>{file.name}</div><div style={{fontSize:11,color:C.muted}}>{fmtSize(file.size)}</div></>:<><div style={{fontWeight:700,fontSize:14,color:C.muted,marginBottom:4}}>Drag & drop WAR / EAR / JAR here</div><div style={{fontSize:11,color:C.dim}}>or click to browse</div></>}
+        <input id="warFileInput" type="file" accept=".war,.ear,.jar" onChange={handleFileDrop} style={{display:"none"}}/>
       </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Application Name</div>
+          <Inp value={appName} onChange={e=>setAppName(e.target.value)} placeholder="e.g. pdc-app" C={C}/>
+        </div>
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Target Servers</div>
+          <Sel value={targets} onChange={e=>setTargets(e.target.value)} C={C}>
+            {["WLS-PROD-01,WLS-PROD-02","WLS-PROD-01","WLS-PROD-02","WLS-UAT-01","WLS-PROD-01,WLS-PROD-02,WLS-UAT-01"].map(t=><option key={t} value={t}>{t}</option>)}
+          </Sel>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:12}}>
+        <Btn color={C.red} onClick={doDeploy} loading={deploying} disabled={deploying||!appName.trim()} style={{flex:1,padding:12,justifyContent:"center"}} C={C}>🚀 {realMode?"Deploy to Real WLS":"Simulate Deploy"}</Btn>
+        <Btn color={C.muted} outline onClick={()=>{setShowDeploy(false);setFile(null);setAppName("");}} style={{padding:12}} C={C}>Cancel</Btn>
+      </div>
+    </Card>}
 
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {filtered.map(p=>(
-          <GlowCard key={p.id} color={priorityColor[p.priority]||C.blue} style={{padding:"14px 18px"}} C={C}>
-            <div style={{display:"flex",gap:14,alignItems:"center"}}>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}>
-                  <span style={{fontWeight:700,fontSize:14,color:C.text}}>{p.name}</span>
-                  <Badge text={p.priority} color={priorityColor[p.priority]||C.blue}/>
-                  <Badge text={p.impact} color={C.cyan}/>
-                  {p.cve!=="N/A"&&<Badge text={p.cve} color={C.danger}/>}
+    <div style={{display:"grid",gridTemplateColumns:"3fr 1fr",gap:14}}>
+      <div>
+        {/* Filter bar */}
+        <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+          {["ALL","ACTIVE","PREPARED","FAILED"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 14px",borderRadius:3,border:"1px solid "+(filter===f?C.red:C.border),background:filter===f?C.red+"15":"transparent",color:filter===f?C.red:C.muted,fontSize:12,cursor:"pointer",fontWeight:700}}>{f}</button>)}
+          {canDeploy&&realMode&&<button onClick={loadRealDeployments} style={{marginLeft:"auto",padding:"5px 14px",borderRadius:3,border:"1px solid "+C.border,background:"transparent",color:C.muted,fontSize:12,cursor:"pointer"}}>↻ Refresh</button>}
+        </div>
+
+        {/* Deployment list */}
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {filtered.map(dep=><Card key={dep.name} color={scol(dep.state||"ACTIVE",C)} style={{padding:"14px 18px"}} C={C}>
+            <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap"}}>
+              <div style={{fontSize:32,flexShrink:0}}>{dep.type==="EAR"?"🏢":dep.type==="JAR"?"☕":"🌐"}</div>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}>
+                  <span style={{fontWeight:800,fontSize:15,fontFamily:"monospace",color:C.text}}>{dep.name}</span>
+                  <Chip label={dep.type||"WAR"} color={C.cyan} C={C}/>
+                  <Badge text={dep.state||"ACTIVE"} color={scol(dep.state||"ACTIVE",C)}/>
+                  {dep.health&&dep.health!=="OK"&&<Badge text={dep.health} color={C.warning}/>}
                 </div>
                 <div style={{display:"flex",gap:12,fontSize:11,color:C.muted,flexWrap:"wrap"}}>
-                  <span>🖥️ {p.server}</span>
-                  <span>📅 Released: {p.releaseDate}</span>
+                  {dep.version&&<span>📌 v{dep.version}</span>}
+                  {dep.size&&<span>💾 {dep.size}</span>}
+                  {dep.deployedAt&&<span>🕐 {dep.deployedAt}</span>}
+                </div>
+                <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
+                  {(dep.targets||[]).map(t=><Chip key={t} label={t} color={C.blue} C={C}/>)}
                 </div>
               </div>
-              <div style={{display:"flex",gap:8,flexShrink:0,alignItems:"center"}}>
-                <Badge text={p.status} color={statusColor(p.status,C)}/>
-                {p.status==="PENDING"&&(
-                  <Btn sm grad={G.blue} onClick={()=>updateStatus(p.id,"SCHEDULED")} C={C}>📅 Schedule</Btn>
-                )}
-                {p.status==="SCHEDULED"&&(
-                  <Btn sm grad={G.green} onClick={()=>updateStatus(p.id,"COMPLETED")} C={C}>✅ Mark Done</Btn>
-                )}
-              </div>
+              {canDeploy&&<div style={{display:"flex",gap:7,flexShrink:0,flexWrap:"wrap"}}>
+                {dep.state!=="ACTIVE"&&<Btn color={C.success} sm onClick={()=>doOp(dep,"START")} C={C}>▶️ Start</Btn>}
+                {dep.state==="ACTIVE"&&<Btn color={C.warning} sm onClick={()=>doOp(dep,"STOP")} C={C}>⏹ Stop</Btn>}
+                <Btn color={C.blue} sm onClick={()=>doOp(dep,"REDEPLOY")} C={C}>🔄 Redeploy</Btn>
+                <Btn color={C.danger} sm outline onClick={()=>{ if(window.confirm("Undeploy "+dep.name+"?")) doOp(dep,"UNDEPLOY"); }} C={C}>🗑 Undeploy</Btn>
+              </div>}
             </div>
-          </GlowCard>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Simplified remaining tabs ──────────────────────────────
-function OverviewTab({C,wlsServers,compute,databases,lbs,wlsIssues,approvalList,auditList,incidentList}){
-  const running=wlsServers.filter(s=>s.status==="RUNNING").length;
-  const critical=wlsServers.filter(s=>s.status==="CRITICAL").length;
-  const openInc=incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status)).length;
-  return (
-    <div>
-      <div style={{marginBottom:18}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-          <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,margin:0}}>🌐 OCI Infrastructure Overview</h2>
+          </Card>)}
+          {filtered.length===0&&<Card color={C.muted} style={{textAlign:"center",padding:40}} C={C}><div style={{color:C.muted}}>No deployments found.</div></Card>}
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><Pulse color={C.green} size={6}/><span style={{fontSize:11,color:C.muted}}>Live · ap-mumbai-1 (Primary) · ap-hyderabad-1 (DR) · Updates every 3s</span></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:16}}>
-        {[
-          {l:"Compute Running",v:`${compute.filter(c=>c.status==="RUNNING").length}/${compute.length}`,c:C.green,i:"💻"},
-          {l:"WebLogic Running",v:`${running}/${wlsServers.length}`,c:C.orange,i:"⚡"},
-          {l:"Databases Up",v:`${databases.filter(d=>d.status==="AVAILABLE").length}/${databases.length}`,c:C.blue,i:"🗄️"},
-          {l:"LB Active",v:`${lbs.filter(l=>l.status==="ACTIVE").length}/${lbs.length}`,c:C.teal,i:"⚖️"},
-          {l:"Critical Alerts",v:critical,c:critical>0?C.danger:C.green,i:"🔴"},
-          {l:"Open Incidents",v:openInc,c:openInc>0?C.orange:C.green,i:"🚨"},
-          {l:"Auto-Healing",v:wlsIssues.filter(i=>i.status==="HEALING").length,c:C.cyan,i:"🔄"},
-          {l:"Pending Ops",v:(approvalList||[]).filter(a=>a.status==="PENDING").length,c:C.warning,i:"⏳"},
-        ].map(s=>(
-          <GlowCard key={s.l} color={s.c} style={{padding:"12px 10px"}} C={C}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div>
-                <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:20,fontWeight:700,color:s.c,lineHeight:1}}>{s.v}</div>
-                <div style={{fontSize:9,color:C.muted,marginTop:4,letterSpacing:.8}}>{s.l.toUpperCase()}</div>
-              </div>
-              <span style={{fontSize:14,opacity:.5}}>{s.i}</span>
-            </div>
-          </GlowCard>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:14,marginBottom:14}}>
-        <GlowCard color={C.blue} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:14,display:"flex",justifyContent:"space-between"}}><span>💻 Live Server Matrix</span><div style={{display:"flex",alignItems:"center",gap:4}}><Pulse color={C.green} size={6}/><span style={{fontSize:10,color:C.muted,fontWeight:400}}>Live</span></div></div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            {wlsServers.map(s=>(
-              <div key={s.id} style={{background:C.card2,borderRadius:10,padding:10,border:`1px solid ${statusColor(s.status,C)}22`,transition:"border .3s"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}><div style={{display:"flex",alignItems:"center",gap:6}}><Pulse color={statusColor(s.status,C)} size={6}/><span style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:C.text}}>{s.name}</span></div><Badge text={s.status} color={statusColor(s.status,C)}/></div>
-                <MetricBar value={s.cpu} label="CPU" warn={70} crit={85} small C={C}/>
-                <div style={{marginTop:4}}><MetricBar value={s.jvmHeap} label="JVM" warn={80} crit={92} small C={C}/></div>
-              </div>
-            ))}
+
+      {/* Terminal */}
+      <div style={{position:"sticky",top:90,height:"fit-content"}}>
+        <Card color={C.success} C={C}>
+          <div style={{fontWeight:700,marginBottom:10,fontSize:13,display:"flex",justifyContent:"space-between"}}>
+            <span>🖥 Deploy Console</span>
+            <button onClick={()=>setTermLines(["[INFO] Cleared."])} style={{background:"none",border:"1px solid "+C.border,borderRadius:3,color:C.muted,cursor:"pointer",fontSize:10,padding:"2px 8px"}}>Clear</button>
           </div>
-        </GlowCard>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <GlowCard color={C.danger} C={C}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:14}}>🚨 Active Issues</div>
-            {wlsIssues.filter(i=>i.status!=="RESOLVED").length===0?<div style={{color:C.muted,fontSize:12,textAlign:"center",padding:"10px 0"}}>✅ All clear</div>
-              :wlsIssues.filter(i=>i.status!=="RESOLVED").map(i=>(
-                <div key={i.id} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div><div style={{fontWeight:700,fontSize:11,color:i.severity==="CRITICAL"?C.danger:C.warning,fontFamily:"monospace"}}>{i.server}</div><div style={{fontSize:10,color:C.muted}}>{i.type}</div></div>
-                  <div style={{display:"flex",gap:4,alignItems:"center"}}>{i.status==="HEALING"&&<span style={{animation:"spin 1s linear infinite",display:"inline-block",fontSize:12}}>🔄</span>}<Badge text={i.severity} color={i.severity==="CRITICAL"?C.danger:C.warning}/></div>
-                </div>
-              ))}
-          </GlowCard>
-          <GlowCard color={C.purple} C={C}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:14}}>📋 Recent Activity</div>
-            {auditList.length===0?<div style={{color:C.muted,fontSize:11}}>No activity yet.</div>
-              :[...auditList].reverse().slice(0,5).map(a=>(
-                <div key={a.id} style={{padding:"5px 0",borderBottom:`1px solid ${C.border}`}}>
-                  <div style={{fontWeight:600,fontSize:11,color:C.text}}>{a.action}</div>
-                  <div style={{color:C.muted,fontSize:10,marginTop:2}}>{a.user} · {a.time}</div>
-                </div>
-              ))}
-          </GlowCard>
+          <Terminal lines={termLines} height={420} C={C}/>
+        </Card>
+      </div>
+    </div>
+  </div>;
+}
+
+// ─── Operations Tab ────────────────────────────────────────────────────────
+function OperationsTab({C,wls,user,approvalList,handleOp,termLines,setTermLines,realMode}) {
+  const [form,setForm]=useState({server:"",operation:"RESTART"});
+  const [loading,setLoading]=useState(false);
+  const termLine=(l)=>setTermLines(p=>[...p,l]);
+
+  const execOp=async()=>{
+    if(!form.server) return;
+    const res=wls.find(r=>r.name===form.server);
+    if(!res) return;
+    if(realMode) {
+      setLoading(true);
+      termLine("[INFO] "+form.operation+" on "+form.server+" (real WLS)...");
+      handleOp(res,form.operation,"wls");
+      setLoading(false);
+    } else {
+      handleOp(res,form.operation,"wls");
+    }
+  };
+
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>Operations Center</h2>
+    <p style={{color:C.muted,marginBottom:16,fontSize:12}}>{user.role==="admin"?"System Admin — direct execution":"Operations require Change Approver sign-off"} · {realMode&&<strong style={{color:C.success}}>REAL WLS EXECUTION</strong>}</p>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <Card color={C.red} C={C}>
+        <div style={{fontWeight:700,marginBottom:14,fontSize:15}}>Submit Operation</div>
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Target Server</div>
+          <select value={form.server} onChange={e=>setForm(f=>({...f,server:e.target.value}))} style={{width:"100%",padding:"9px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}>
+            <option value="">Select server…</option>
+            {wls.map(s=><option key={s.id} value={s.name}>{s.name} [{s.status}]</option>)}
+          </select>
         </div>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12}}>
-        <GlowCard color={C.cyan} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:14}}>🗄️ Databases</div>
-          {databases.map(d=>(
-            <div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div><div style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:C.text}}>{d.name}</div><div style={{fontSize:10,color:C.muted}}>{d.type} · {d.region}</div></div>
-              <div style={{display:"flex",gap:5}}><Badge text={`${d.cpu}%`} color={d.cpu>70?C.warning:C.green}/><Badge text={d.status} color={statusColor(d.status,C)}/></div>
-            </div>
-          ))}
-        </GlowCard>
-        <GlowCard color={C.teal} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:14}}>⚖️ Load Balancers</div>
-          {lbs.map(l=>(
-            <div key={l.id} style={{background:C.card2,borderRadius:8,padding:10,marginBottom:7}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:700,fontSize:11,color:C.text}}>{l.name}</span><Badge text={l.status} color={statusColor(l.status,C)}/></div>
-              <div style={{display:"flex",gap:8,fontSize:11}}><span style={{color:C.teal}}>⚡{l.rps.toLocaleString()} RPS</span><span style={{color:l.healthyBackends<l.backends?C.warning:C.green}}>{l.healthyBackends}/{l.backends} backends</span></div>
-            </div>
-          ))}
-        </GlowCard>
-        <GlowCard color={C.orange} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:14}}>🚨 Open Incidents</div>
-          {openInc===0?<div style={{color:C.muted,fontSize:12,padding:"8px 0"}}>✅ No open incidents</div>
-            :incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status)).slice(0,4).map(i=>(
-              <div key={i.id} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-                <div style={{fontWeight:700,fontSize:11,color:i.priority==="P1"?C.danger:C.warning}}>{i.title?.slice(0,35)}...</div>
-                <div style={{fontSize:10,color:C.muted}}>{i.priority} · {i.assignee}</div>
-              </div>
-            ))}
-        </GlowCard>
-      </div>
-    </div>
-  );
-}
-
-function WebLogicTab({C,wlsServers,user,handleOp}){
-  const [sel,setSel]=useState(null);
-  const s=sel?wlsServers.find(x=>x.id===sel):null;
-  const canOp=user.role==="admin"||user.role==="operator";
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>⚡ WebLogic Servers</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Live JVM metrics · Click server for details</p>
-      <div style={{display:"grid",gridTemplateColumns:s?"1fr 360px":"1fr",gap:14}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,alignContent:"start"}}>
-          {wlsServers.map(sv=>(
-            <GlowCard key={sv.id} color={statusColor(sv.status,C)} onClick={()=>setSel(sel===sv.id?null:sv.id)} style={{cursor:"pointer",padding:"13px 15px"}} C={C}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:9}}>
-                <div><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}><Pulse color={statusColor(sv.status,C)} size={7}/><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.text}}>{sv.name}</span></div><div style={{fontSize:10,color:C.muted}}>{sv.host}</div></div>
-                <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}><Badge text={sv.status} color={statusColor(sv.status,C)} dot/><Badge text={sv.env} color={sv.env==="Production"?C.red:sv.env==="UAT"?C.blue:C.teal}/></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:9}}>
-                {[["CPU",sv.cpu+"%",sv.cpu>85?C.danger:sv.cpu>70?C.warning:C.green],["MEM",sv.mem+"%",sv.mem>90?C.danger:sv.mem>75?C.warning:C.green],["JVM",sv.jvmHeap+"%",sv.jvmHeap>92?C.danger:sv.jvmHeap>80?C.warning:C.green],["THR",sv.threads,sv.threads/sv.maxThreads>.9?C.danger:sv.threads/sv.maxThreads>.75?C.warning:C.green]].map(([l,v,c])=>(
-                  <div key={l} style={{background:C.bg,borderRadius:7,padding:"6px 3px",textAlign:"center"}}><div style={{fontFamily:"monospace",fontSize:11,fontWeight:700,color:c,transition:"color .3s"}}>{v}</div><div style={{fontSize:9,color:C.muted,marginTop:2}}>{l}</div></div>
-                ))}
-              </div>
-              <div style={{fontSize:10,color:C.muted}}>⏱ {fmtUptime(sv.uptimeSecs)} · {sv.deployments} apps · WLS {sv.version}</div>
-              {["STARTING","STOPPING","RESTARTING"].includes(sv.status)&&<div style={{marginTop:6,fontSize:10,color:C.cyan,display:"flex",alignItems:"center",gap:3}}><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span>{sv.status}...</div>}
-            </GlowCard>
-          ))}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Operation</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+            {[["RESTART","🔄",C.blue],["STOP","⏹️",C.danger],["START","▶️",C.success],["HEAPDUMP","💾",C.purple],["THREADDUMP","📋",C.teal],["PATCH","🔧",C.orange]].map(([op,icon,color])=><button key={op} onClick={()=>setForm(f=>({...f,operation:op}))} style={{padding:"9px 5px",background:form.operation===op?color+"20":C.card2,border:"2px solid "+(form.operation===op?color:C.border),borderRadius:4,cursor:"pointer",textAlign:"center"}}>
+              <div style={{fontSize:18,marginBottom:2}}>{icon}</div>
+              <div style={{fontSize:10,fontWeight:700,color:form.operation===op?color:C.muted}}>{op}</div>
+            </button>)}
+          </div>
         </div>
-        {s&&<div style={{position:"sticky",top:80,height:"fit-content",display:"flex",flexDirection:"column",gap:10}}>
-          <GlowCard color={statusColor(s.status,C)} C={C}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:C.text}}>{s.name}</div><div style={{fontSize:10,color:C.muted,fontFamily:"monospace",marginTop:3}}>{s.host}:{s.port}</div></div><button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button></div>
-            <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:12}}>
-              <MetricBar value={s.cpu} label="CPU" warn={70} crit={85} C={C}/>
-              <MetricBar value={s.mem} label="Memory" warn={75} crit={90} C={C}/>
-              <MetricBar value={s.jvmHeap} label="JVM Heap" warn={80} crit={92} C={C}/>
-              <MetricBar value={s.gcTime} max={200} label="GC Time" warn={50} crit={100} unit="ms" C={C}/>
-              <MetricBar value={s.threads} max={s.maxThreads} label={`Threads (max ${s.maxThreads})`} warn={75} crit={90} unit="" C={C}/>
-            </div>
-            {canOp&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
-              {[["RESTART","🔄",C.blue],["STOP","⏹️",C.danger],["START","▶️",C.green]].map(([op,icon,color])=>(
-                <button key={op} onClick={()=>handleOp(s,op,"wls")} style={{padding:"9px 4px",background:`${color}15`,border:`1px solid ${color}44`,borderRadius:9,cursor:"pointer",textAlign:"center",color,fontWeight:700,fontSize:10}}>
-                  <div style={{fontSize:17,marginBottom:2}}>{icon}</div>{op}
-                </button>
-              ))}
-            </div>}
-            {user.role!=="admin"&&<div style={{fontSize:10,color:C.warning,marginTop:7,textAlign:"center"}}>⚠ Requires approval</div>}
-          </GlowCard>
-        </div>}
+        <Btn color={user.role==="admin"?C.success:C.warning} onClick={execOp} disabled={!form.server} loading={loading} style={{width:"100%",padding:12,justifyContent:"center"}} C={C}>{user.role==="admin"?`⚡ Execute ${realMode?"(Real)":"(Sim)"}`:"📤 Submit for Approval"}</Btn>
+      </Card>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <Card color={C.success} C={C}>
+          <div style={{fontWeight:700,marginBottom:10,fontSize:13,display:"flex",justifyContent:"space-between"}}>
+            <span>🖥 Console</span>
+            <button onClick={()=>setTermLines(["[INFO] Cleared."])} style={{background:"none",border:"1px solid "+C.border,borderRadius:3,color:C.muted,cursor:"pointer",fontSize:10,padding:"2px 8px"}}>Clear</button>
+          </div>
+          <Terminal lines={termLines} height={200} C={C}/>
+        </Card>
+        <Card color={C.warning} C={C}>
+          <div style={{fontWeight:700,marginBottom:10,fontSize:13}}>⏳ Pending Approvals</div>
+          {(approvalList||[]).filter(a=>a.status==="PENDING").length===0?<div style={{color:C.muted,fontSize:12}}>None pending.</div>:(approvalList||[]).filter(a=>a.status==="PENDING").map(a=><div key={a.id} style={{background:C.bg,borderRadius:4,padding:"8px 10px",marginBottom:6,borderLeft:"3px solid "+C.warning}}>
+            <div style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:C.text}}>{a.operation} → {a.target}</div>
+            <div style={{fontSize:10,color:C.muted,marginTop:2}}>By {a.requestedBy||a.user} · {a.time}</div>
+          </div>)}
+        </Card>
       </div>
     </div>
-  );
+  </div>;
 }
 
-function ComputeTab({C,compute,user,handleOp}){
-  const [sel,setSel]=useState(null);
-  const s=sel?compute.find(c=>c.id===sel):null;
-  const canOp=user.role==="admin"||user.role==="operator";
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>💻 Compute Instances</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>{compute.length} instances · Live metrics</p>
-      <div style={{display:"grid",gridTemplateColumns:s?"1fr 360px":"1fr",gap:14}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10,alignContent:"start"}}>
-          {compute.map(c=>(
-            <GlowCard key={c.id} color={statusColor(c.status,C)} onClick={()=>setSel(sel===c.id?null:c.id)} style={{cursor:"pointer",padding:"13px 15px"}} C={C}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:9}}>
-                <div><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3}}><Pulse color={statusColor(c.status,C)} size={7}/><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.text}}>{c.name}</span></div><div style={{fontSize:10,color:C.muted}}>{c.shape}</div></div>
-                <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}><Badge text={c.status} color={statusColor(c.status,C)} dot/><Badge text={c.role} color={C.blue}/></div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5,marginBottom:9}}>
-                {[["OCPU",c.ocpu,C.cyan],["RAM",c.ram+"G",C.purple],["CPU%",c.status!=="STOPPED"?c.cpu+"%":"-",c.cpu>85?C.danger:c.cpu>70?C.warning:C.green],["MEM%",c.status!=="STOPPED"?c.mem+"%":"-",c.mem>88?C.danger:c.mem>75?C.warning:C.green]].map(([l,v,col])=>(
-                  <div key={l} style={{background:C.bg,borderRadius:7,padding:"6px 3px",textAlign:"center"}}><div style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:col,transition:"color .3s"}}>{v}</div><div style={{fontSize:9,color:C.muted,marginTop:2}}>{l}</div></div>
-                ))}
-              </div>
-              <div style={{fontSize:10,color:C.muted}}>📍 {c.region}/{c.ad} · {c.os}{c.status!=="STOPPED"?` · ⏱ ${fmtUptime(c.uptimeSecs)}`:""}</div>
-            </GlowCard>
-          ))}
-        </div>
-        {s&&<div style={{position:"sticky",top:80,height:"fit-content"}}>
-          <GlowCard color={statusColor(s.status,C)} C={C}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:C.text}}>{s.name}</div><div style={{fontSize:10,color:C.muted,marginTop:3}}>{s.shape}</div></div><button onClick={()=>setSel(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:16}}>✕</button></div>
-            {s.status!=="STOPPED"&&<div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:12}}><MetricBar value={s.cpu} label="CPU" warn={70} crit={88} C={C}/><MetricBar value={s.mem} label="Memory" warn={75} crit={90} C={C}/></div>}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:12}}>
-              {[["OCPU",s.ocpu],["RAM",s.ram+"GB"],["OS",s.os],["Region",s.region],["Uptime",fmtUptime(s.uptimeSecs)]].map(([l,v])=>(
-                <div key={l} style={{background:C.bg,borderRadius:8,padding:"8px 10px"}}><div style={{fontSize:9,color:C.muted,marginBottom:2,textTransform:"uppercase"}}>{l}</div><div style={{fontSize:12,fontWeight:600,fontFamily:"monospace",color:C.text}}>{v}</div></div>
-              ))}
+// ─── Approvals Tab ─────────────────────────────────────────────────────────
+function ApprovalsTab({C,approvalList,user,wls,record,addToast}) {
+  const [localTerm,setLocalTerm]=useState(["[INFO] Approval console ready..."]);
+  const canApprove=user.role==="admin"||user.role==="approver";
+  const approve=(item)=>{
+    update(ref(db,"approvals/"+item.id),{status:"APPROVED",approvedBy:user.name,approvedAt:nowStr()});
+    push(ref(db,"auditLogs"),{action:"APPROVED: "+item.operation+" on "+item.target,user:user.name,time:nowStr()});
+    record("OP_APPROVE",{operation:item.operation,target:item.target,description:user.name+" approved "+item.operation+" on "+item.target});
+    setLocalTerm(p=>[...p,"[OK] APPROVED by "+user.name,"[INFO] Executing "+item.operation+"..."]);
+    addToast("Approved",item.operation+" on "+item.target,C.success,"✅");
+  };
+  const reject=(item)=>{
+    update(ref(db,"approvals/"+item.id),{status:"REJECTED",rejectedBy:user.name,rejectedAt:nowStr()});
+    push(ref(db,"auditLogs"),{action:"REJECTED: "+item.operation+" on "+item.target,user:user.name,time:nowStr()});
+    record("OP_REJECT",{operation:item.operation,target:item.target});
+    setLocalTerm(p=>[...p,"[WARN] REJECTED by "+user.name]);
+    addToast("Rejected",item.target,C.danger,"🚫");
+  };
+  const pending=(approvalList||[]).filter(a=>a.status==="PENDING");
+  const history=(approvalList||[]).filter(a=>a.status!=="PENDING");
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>Change Approvals</h2>
+    <p style={{color:C.muted,marginBottom:16,fontSize:12}}>Review and approve/reject pending change requests</p>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 360px",gap:14}}>
+      <div>
+        <div style={{fontWeight:700,marginBottom:10,fontSize:13,color:C.warning}}>⏳ Pending ({pending.length})</div>
+        {pending.length===0&&<Card color={C.success} style={{textAlign:"center",padding:20,marginBottom:12}} C={C}><div style={{color:C.muted}}>✅ No pending approvals</div></Card>}
+        {pending.map(a=><Card key={a.id} color={C.warning} style={{marginBottom:10}} C={C}>
+          <div style={{marginBottom:10}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}>
+              <span style={{fontFamily:"monospace",fontWeight:800,fontSize:16,color:C.warning}}>{a.operation}</span>
+              <Badge text={a.target} color={C.blue}/>
+              <Badge text={a.priority||"Normal"} color={C.blue}/>
+              {a.resourceType&&<Badge text={a.resourceType.toUpperCase()} color={C.purple}/>}
             </div>
-            {canOp&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>
-              {[["RESTART","🔄",C.blue],["STOP","⏹️",C.danger],["START","▶️",C.green]].map(([op,icon,color])=>(
-                <button key={op} onClick={()=>handleOp(s,op,"compute")} style={{padding:"9px 4px",background:`${color}15`,border:`1px solid ${color}44`,borderRadius:9,cursor:"pointer",textAlign:"center",color,fontWeight:700,fontSize:10}}><div style={{fontSize:17,marginBottom:2}}>{icon}</div>{op}</button>
-              ))}
-            </div>}
-          </GlowCard>
-        </div>}
+            <p style={{color:C.muted,fontSize:12,margin:"0 0 5px"}}>{a.reason}</p>
+            {a.ticket&&<div style={{fontSize:11,color:C.cyan}}>🎫 Ticket: {a.ticket}</div>}
+            <div style={{fontSize:11,color:C.muted}}>By <strong style={{color:C.text}}>{a.requestedBy||a.user}</strong> · {a.time}</div>
+          </div>
+          {canApprove&&<div style={{display:"flex",gap:10}}>
+            <Btn color={C.success} onClick={()=>approve(a)} style={{flex:1}} C={C}>✅ Approve & Execute</Btn>
+            <Btn color={C.danger} outline onClick={()=>reject(a)} style={{flex:1}} C={C}>❌ Reject</Btn>
+          </div>}
+        </Card>)}
+        <div style={{fontWeight:700,marginBottom:8,fontSize:13,color:C.muted,marginTop:14}}>📜 History</div>
+        {history.map(a=><div key={a.id} style={{background:C.card,border:"1px solid "+C.border,borderLeft:"3px solid "+(a.status==="APPROVED"?C.success:C.danger),borderRadius:4,padding:"9px 12px",marginBottom:6}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div><div style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:C.text}}>{a.operation} → {a.target}</div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{a.requestedBy||a.user} · {a.time}</div></div>
+            <Badge text={a.status} color={a.status==="APPROVED"?C.success:C.danger}/>
+          </div>
+        </div>)}
       </div>
+      <Card color={C.success} style={{height:"fit-content",position:"sticky",top:90}} C={C}>
+        <div style={{fontWeight:700,marginBottom:10,fontSize:13}}>🖥 Execution Console</div>
+        <Terminal lines={localTerm} height={320} C={C}/>
+      </Card>
     </div>
-  );
+  </div>;
 }
 
-function DatabaseTab({C,databases}){
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>🗄️ Oracle Databases</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>ATP · ADW · DB Systems · Live metrics</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
-        {databases.map(d=>(
-          <GlowCard key={d.id} color={statusColor(d.status,C)} C={C}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
-              <div><div style={{fontFamily:"monospace",fontWeight:700,fontSize:13,marginBottom:3,color:C.text}}>{d.name}</div><div style={{fontSize:10,color:C.muted}}>{d.type}</div></div>
-              <div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"flex-end"}}><Badge text={d.status} color={statusColor(d.status,C)} dot/><Badge text={d.region} color={C.blue}/></div>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5,marginBottom:10}}>
-              {[["OCPU",d.ocpu,C.cyan],["Size",d.size,C.purple],["CPU%",d.cpu+"%",d.cpu>70?C.warning:C.green]].map(([l,v,c])=>(
-                <div key={l} style={{background:C.bg,borderRadius:7,padding:"7px 4px",textAlign:"center"}}><div style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:c,transition:"color .3s"}}>{v}</div><div style={{fontSize:9,color:C.muted,marginTop:2}}>{l}</div></div>
-              ))}
-            </div>
-            <MetricBar value={d.cpu} label="CPU" warn={60} crit={80} C={C}/>
-            <div style={{marginTop:7}}><MetricBar value={d.connections} max={d.maxConns} label={`Connections (max ${d.maxConns})`} warn={70} crit={85} unit="" C={C}/></div>
-            <div style={{fontSize:10,color:C.muted,marginTop:8}}>⏱ {fmtUptime(d.uptimeSecs)} · Oracle {d.version}</div>
-          </GlowCard>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function NetworkTab({C,lbs}){
-  const network=[{id:"n1",name:"PROD-VCN",cidr:"10.0.0.0/16",region:"ap-mumbai-1",subnets:4,routeTables:3,securityLists:5,igw:true,natGw:true},{id:"n2",name:"DR-VCN",cidr:"10.1.0.0/16",region:"ap-hyderabad-1",subnets:2,routeTables:2,securityLists:3,igw:false,natGw:true}];
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>🔌 Network & Load Balancers</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>VCN topology · Subnets · Security Lists · LB traffic</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-        {network.map(n=>(
-          <GlowCard key={n.id} color={C.blue} C={C}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}><div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,marginBottom:3,color:C.text}}>{n.name}</div><div style={{fontFamily:"monospace",fontSize:11,color:C.cyan}}>{n.cidr}</div></div><Badge text="AVAILABLE" color={C.green}/></div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
-              {[["Subnets",n.subnets,C.blue],["Route Tables",n.routeTables,C.teal],["Sec Lists",n.securityLists,C.orange]].map(([l,v,c])=>(
-                <div key={l} style={{background:C.bg,borderRadius:8,padding:"9px 6px",textAlign:"center"}}><div style={{fontFamily:"monospace",fontSize:16,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:9,color:C.muted,marginTop:3}}>{l}</div></div>
-              ))}
-            </div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><span style={{fontSize:11,color:C.muted}}>📍 {n.region}</span>{n.igw&&<Badge text="Internet GW" color={C.green}/>}{n.natGw&&<Badge text="NAT GW" color={C.cyan}/>}</div>
-          </GlowCard>
-        ))}
-      </div>
-      <GlowCard color={C.teal} C={C}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>⚖️ Load Balancers (Live Traffic)</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          {lbs.map(l=>(
-            <div key={l.id} style={{background:C.card2,borderRadius:12,padding:14,border:`1px solid ${C.teal}33`}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><div><div style={{fontWeight:700,fontSize:13,marginBottom:2,color:C.text}}>{l.name}</div><div style={{fontSize:10,color:C.muted}}>{l.type} · {l.protocol}:{l.port}</div></div><Badge text={l.status} color={statusColor(l.status,C)}/></div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
-                {[["RPS",l.rps.toLocaleString(),C.teal],["BW",l.bw+" Mbps",C.cyan],["Backends",`${l.healthyBackends}/${l.backends}`,l.healthyBackends<l.backends?C.warning:C.green]].map(([label,val,color])=>(
-                  <div key={label} style={{background:C.bg,borderRadius:7,padding:"7px 5px",textAlign:"center"}}><div style={{fontFamily:"monospace",fontSize:13,fontWeight:700,color,transition:"color .3s"}}>{val}</div><div style={{fontSize:9,color:C.muted,marginTop:2}}>{label}</div></div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </GlowCard>
-    </div>
-  );
-}
-
-function IncidentsTab({C,incidentList,user,wlsServers,compute,addToast}){
+// ─── Incidents Tab (condensed) ─────────────────────────────────────────────
+function IncidentsTab({C,incidentList,user,wls,addToast,record}) {
   const [form,setForm]=useState({title:"",description:"",priority:"P2",assignee:"",affectedSystem:"",category:"Performance"});
   const [showForm,setShowForm]=useState(false);
   const [filter,setFilter]=useState("OPEN");
   const create=()=>{
-    if(!form.title.trim())return;
-    push(ref(db,"incidents"),{...form,status:"OPEN",reportedBy:user.name,createdAt:now(),slaBreachAt:form.priority==="P1"?"1 hour":form.priority==="P2"?"4 hours":"8 hours"});
+    if(!form.title.trim()) return;
+    push(ref(db,"incidents"),{...form,status:"OPEN",reportedBy:user.name,createdAt:nowStr(),slaBreachAt:form.priority==="P1"?"1 hour":form.priority==="P2"?"4 hours":"8 hours"});
+    record("INCIDENT",{description:user.name+" created incident: "+form.title});
     setForm({title:"",description:"",priority:"P2",assignee:"",affectedSystem:"",category:"Performance"});
     setShowForm(false);
-    addToast("🚨 Incident created","P"+form.priority+" incident logged",C.orange,"🚨");
+    addToast("Incident created","",C.warning,"🚨");
   };
-  const updateStatus=(id,status)=>update(ref(db,`incidents/${id}`),{status,updatedAt:now()});
-  const allSystems=[...wlsServers.map(s=>s.name),...compute.map(c=>c.name)];
-  const filtered=filter==="ALL"?incidentList:incidentList.filter(i=>i.status===filter||(filter==="OPEN"&&i.status==="ACKNOWLEDGED"));
-  const priorityColor={P1:C.danger,P2:C.warning,P3:C.orange};
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20}}>
-        <div><h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>🚨 Incident Management</h2><p style={{color:C.muted,margin:0,fontSize:12}}>ITIL P1/P2/P3 · SLA timers · Auto-detection</p></div>
-        <Btn grad={G.red} color={C.red} onClick={()=>setShowForm(!showForm)} C={C}>+ Create Incident</Btn>
+  const filtered=filter==="ALL"?incidentList:incidentList.filter(i=>filter==="OPEN"?["OPEN","ACKNOWLEDGED"].includes(i.status):i.status===filter);
+  const pc={P1:C.danger,P2:C.warning,P3:C.orange};
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20,flexWrap:"wrap",gap:10}}>
+      <div><h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Incident Management</h2><p style={{color:C.muted,margin:0,fontSize:12}}>ITIL P1/P2/P3 · SLA timers</p></div>
+      <Btn color={C.red} onClick={()=>setShowForm(!showForm)} C={C}>+ Create Incident</Btn>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+      {[["P1",incidentList.filter(i=>i.priority==="P1"&&!["RESOLVED","CLOSED"].includes(i.status)).length,C.danger],["P2",incidentList.filter(i=>i.priority==="P2"&&!["RESOLVED","CLOSED"].includes(i.status)).length,C.warning],["Open",incidentList.filter(i=>i.status==="OPEN").length,C.orange],["Resolved",incidentList.filter(i=>["RESOLVED","CLOSED"].includes(i.status)).length,C.success]].map(([l,v,c])=><Card key={l} color={c} style={{padding:"13px 14px"}} C={C}><div style={{fontFamily:"monospace",fontSize:24,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:4,textTransform:"uppercase"}}>{l}</div></Card>)}
+    </div>
+    {showForm&&<Card color={C.red} style={{marginBottom:14}} C={C}>
+      <div style={{fontWeight:700,marginBottom:12,fontSize:15}}>Create Incident</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <Inp value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Title *" C={C}/>
+        <Sel value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} C={C}>{["P1 - Critical","P2 - High","P3 - Medium"].map((p,i)=><option key={i} value={"P"+(i+1)}>{p}</option>)}</Sel>
+        <Sel value={form.assignee} onChange={e=>setForm(f=>({...f,assignee:e.target.value}))} C={C}><option value="">Assign To</option>{["Rajesh Kumar","Priya Sharma","Amit Verma","Sneha Patel"].map(n=><option key={n}>{n}</option>)}</Sel>
+        <Sel value={form.affectedSystem} onChange={e=>setForm(f=>({...f,affectedSystem:e.target.value}))} C={C}><option value="">Affected System</option>{wls.map(s=><option key={s.id}>{s.name}</option>)}</Sel>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
-        {[["P1 Critical",incidentList.filter(i=>i.priority==="P1"&&!["RESOLVED","CLOSED"].includes(i.status)).length,C.danger,"🔴"],["P2 High",incidentList.filter(i=>i.priority==="P2"&&!["RESOLVED","CLOSED"].includes(i.status)).length,C.warning,"🟠"],["Open",incidentList.filter(i=>i.status==="OPEN").length,C.orange,"⚠️"],["Resolved",incidentList.filter(i=>["RESOLVED","CLOSED"].includes(i.status)).length,C.green,"✅"]].map(([l,v,c,i])=>(
-          <GlowCard key={l} color={c} style={{padding:"13px 14px"}} C={C}><div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:24,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:4}}>{i} {l.toUpperCase()}</div></GlowCard>
-        ))}
-      </div>
-      {showForm&&(
-        <GlowCard color={C.red} style={{marginBottom:16}} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>Create Incident</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Incident title *" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <select value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              {["P1 - Critical (1hr SLA)","P2 - High (4hr SLA)","P3 - Medium (8hr SLA)"].map((p,i)=><option key={i} value={`P${i+1}`}>{p}</option>)}
-            </select>
-            <select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              {["Performance","Availability","Security","Data","Configuration","Other"].map(c=><option key={c}>{c}</option>)}
-            </select>
-            <select value={form.affectedSystem} onChange={e=>setForm(f=>({...f,affectedSystem:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              <option value="">Affected System</option>
-              {allSystems.map(s=><option key={s}>{s}</option>)}
-            </select>
-            <select value={form.assignee} onChange={e=>setForm(f=>({...f,assignee:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              <option value="">Assign To</option>
-              {["Rajesh Kumar","Priya Sharma","Amit Verma","Sneha Patel"].map(n=><option key={n}>{n}</option>)}
-            </select>
+      <Inp value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description..." rows={2} style={{marginTop:10}} C={C}/>
+      <div style={{display:"flex",gap:10,marginTop:12}}><Btn color={C.red} onClick={create} C={C}>🚨 Create</Btn><Btn color={C.muted} outline onClick={()=>setShowForm(false)} C={C}>Cancel</Btn></div>
+    </Card>}
+    <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+      {["OPEN","ACKNOWLEDGED","RESOLVED","ALL"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"5px 14px",borderRadius:3,border:"1px solid "+(filter===f?C.red:C.border),background:filter===f?C.red+"15":"transparent",color:filter===f?C.red:C.muted,fontSize:12,cursor:"pointer",fontWeight:700}}>{f}</button>)}
+    </div>
+    {filtered.length===0?<Card color={C.success} style={{textAlign:"center",padding:36}} C={C}><div style={{color:C.muted}}>✅ No incidents found</div></Card>:<div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {filtered.map(i=><Card key={i.id} color={pc[i.priority]||C.blue} style={{padding:"13px 16px"}} C={C}>
+        <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}><Badge text={i.priority} color={pc[i.priority]||C.blue}/><span style={{fontWeight:700,fontSize:14,color:C.text}}>{i.title}</span></div>
+            {i.description&&<p style={{color:C.muted,fontSize:12,margin:"0 0 5px"}}>{i.description}</p>}
+            <div style={{display:"flex",gap:10,fontSize:11,color:C.muted,flexWrap:"wrap"}}>
+              {i.affectedSystem&&<span>🖥 {i.affectedSystem}</span>}{i.assignee&&<span>👤 {i.assignee}</span>}<span>🕐 {i.createdAt}</span>{i.slaBreachAt&&<span style={{color:i.priority==="P1"?C.danger:C.warning}}>⏱ SLA: {i.slaBreachAt}</span>}
+            </div>
           </div>
-          <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Describe the incident..." rows={2} style={{width:"100%",padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box",resize:"vertical",marginTop:10}}/>
-          <div style={{display:"flex",gap:10,marginTop:12}}><Btn grad={G.red} onClick={create} C={C}>🚨 Create</Btn><Btn onClick={()=>setShowForm(false)} C={C}>Cancel</Btn></div>
-        </GlowCard>
-      )}
-      <div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>
-        {["OPEN","ACKNOWLEDGED","RESOLVED","CLOSED","ALL"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"4px 12px",borderRadius:20,border:`1px solid ${filter===f?C.red:C.border}`,background:filter===f?`${C.red}20`:"transparent",color:filter===f?C.red:C.muted,fontSize:11,cursor:"pointer",fontWeight:700}}>{f}</button>)}
-      </div>
-      {filtered.length===0?<GlowCard color={C.green} style={{textAlign:"center",padding:36}} C={C}><div style={{color:C.muted}}>✅ No incidents found</div></GlowCard>
-        :<div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {filtered.map(i=>(
-            <GlowCard key={i.id} color={priorityColor[i.priority]||C.blue} style={{padding:"13px 16px"}} C={C}>
-              <div style={{display:"flex",gap:14,alignItems:"flex-start"}}>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}><Badge text={i.priority} color={priorityColor[i.priority]||C.blue}/><span style={{fontWeight:700,fontSize:14,color:C.text}}>{i.title}</span><Badge text={i.category||"General"} color={C.blue}/></div>
-                  {i.description&&<p style={{color:C.muted,fontSize:12,margin:"0 0 6px",lineHeight:1.4}}>{i.description}</p>}
-                  <div style={{display:"flex",gap:10,fontSize:11,color:C.muted,flexWrap:"wrap"}}>
-                    {i.affectedSystem&&<span>🖥️ {i.affectedSystem}</span>}{i.assignee&&<span>👤 {i.assignee}</span>}<span>🕐 {i.createdAt}</span>{i.slaBreachAt&&<span style={{color:i.priority==="P1"?C.danger:C.warning}}>⏱ SLA: {i.slaBreachAt}</span>}
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:7,flexShrink:0,alignItems:"center"}}>
-                  <Badge text={i.status} color={statusColor(i.status,C)}/>
-                  <select value={i.status} onChange={e=>updateStatus(i.id,e.target.value)} style={{padding:"4px 8px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
-                    {["OPEN","ACKNOWLEDGED","IN_PROGRESS","RESOLVED","CLOSED"].map(s=><option key={s}>{s}</option>)}
-                  </select>
-                  <button onClick={()=>remove(ref(db,`incidents/${i.id}`))} style={{padding:"3px 9px",background:`${C.red}15`,border:`1px solid ${C.red}33`,borderRadius:7,color:C.red,fontSize:10,cursor:"pointer",fontWeight:700}}>✕</button>
-                </div>
-              </div>
-            </GlowCard>
-          ))}
-        </div>
-      }
-    </div>
-  );
-}
-
-function SLATab({C}){
-  const slaData=[{name:"WLS-PROD-01",sla:99.97,uptime:99.97,incidents:1,downtime:"2h 15m",target:"99.9%",status:"MET"},{name:"WLS-PROD-02",sla:99.94,uptime:99.94,incidents:2,downtime:"3h 30m",target:"99.9%",status:"MET"},{name:"WLS-PROD-03",sla:99.75,uptime:99.75,incidents:5,downtime:"6h 12m",target:"99.9%",status:"AT RISK"},{name:"WLS-PROD-04",sla:99.45,uptime:99.45,incidents:8,downtime:"13h 0m",target:"99.9%",status:"BREACHED"},{name:"PROD-ADB-01",sla:99.99,uptime:99.99,incidents:0,downtime:"0h 0m",target:"99.99%",status:"MET"},{name:"PROD-LB-PUBLIC",sla:99.98,uptime:99.98,incidents:1,downtime:"1h 0m",target:"99.99%",status:"AT RISK"}];
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>⏱️ SLA & Uptime Tracker</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Monthly SLA compliance · Uptime tracking · Downtime log</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
-        {[["SLA Met",slaData.filter(s=>s.status==="MET").length,C.green],["At Risk",slaData.filter(s=>s.status==="AT RISK").length,C.warning],["Breached",slaData.filter(s=>s.status==="BREACHED").length,C.danger],["Overall","99.84%",C.blue]].map(([l,v,c])=>(
-          <GlowCard key={l} color={c} style={{padding:"13px 14px"}} C={C}><div style={{fontFamily:"monospace",fontSize:24,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:4}}>{l.toUpperCase()}</div></GlowCard>
-        ))}
-      </div>
-      <GlowCard color={C.blue} C={C}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>📊 SLA Compliance — This Month</div>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr style={{borderBottom:`1px solid ${C.border}`}}>{["Service","SLA Target","Actual Uptime","Incidents","Downtime","Status"].map(h=><th key={h} style={{padding:"9px 10px",textAlign:"left",fontSize:10,color:C.muted,letterSpacing:1,textTransform:"uppercase",fontWeight:600}}>{h}</th>)}</tr></thead>
-            <tbody>
-              {slaData.map(s=>(
-                <tr key={s.name} style={{borderBottom:`1px solid ${C.border}22`}}>
-                  <td style={{padding:"10px",fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.text}}>{s.name}</td>
-                  <td style={{padding:"10px",fontSize:12,color:C.muted}}>{s.target}</td>
-                  <td style={{padding:"10px",fontSize:12,fontWeight:700,color:s.uptime>=99.9?C.green:s.uptime>=99.5?C.warning:C.danger}}>{s.uptime}%</td>
-                  <td style={{padding:"10px",fontSize:12,color:s.incidents>3?C.warning:C.muted}}>{s.incidents}</td>
-                  <td style={{padding:"10px",fontSize:12,color:C.muted}}>{s.downtime}</td>
-                  <td style={{padding:"10px"}}><Badge text={s.status} color={s.status==="MET"?C.green:s.status==="AT RISK"?C.warning:C.danger}/></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </GlowCard>
-    </div>
-  );
-}
-
-function CapacityTab({C,wlsServers,compute,databases}){
-  const recommendations=[{resource:"WLS-PROD-04",issue:"JVM Heap >90% consistently",action:"Scale: Increase heap to 4GB or add WLS-PROD-05",urgency:"CRITICAL"},{resource:"WLS-PROD-03",issue:"Thread pool >85% for 2+ weeks",action:"Increase maxThreads to 300",urgency:"HIGH"},{resource:"PROD-ADB-01",issue:"Connections trending +15%/month",action:"Scale to 8 OCPU",urgency:"MEDIUM"},{resource:"prod-app-01",issue:"CPU averaging 65%",action:"Monitor — consider upgrade",urgency:"LOW"}];
-  const urgencyColor={CRITICAL:C.danger,HIGH:C.warning,MEDIUM:C.orange,LOW:C.blue};
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>📈 Capacity Planning</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Resource utilization trends · Forecasting · Scale recommendations</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-        <GlowCard color={C.orange} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:15}}>🔮 30/60/90 Day Forecast</div>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr style={{borderBottom:`1px solid ${C.border}`}}>{["Resource","Now","30d","60d","90d"].map(h=><th key={h} style={{padding:"7px 8px",textAlign:"left",fontSize:10,color:C.muted,textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
-            <tbody>
-              {[["WLS JVM",82,91,97,"⚠ Limit"],["Compute CPU",55,62,68,74],["DB Connections",45,52,60,68],["Storage",60,63,66,69]].map(([r,...vals])=>(
-                <tr key={r} style={{borderBottom:`1px solid ${C.border}22`}}>
-                  <td style={{padding:"8px",fontSize:12,fontWeight:600,color:C.text}}>{r}</td>
-                  {vals.map((v,i)=><td key={i} style={{padding:"8px",fontSize:12,color:i===3&&isNaN(v)?C.danger:i>=2?C.warning:C.muted,fontWeight:i>=2?700:400}}>{isNaN(v)?v:`${v}%`}</td>)}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </GlowCard>
-        <GlowCard color={C.purple} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:15}}>💡 Scale Recommendations</div>
-          {recommendations.map((r,i)=>(
-            <div key={i} style={{background:C.card2,borderRadius:10,padding:"10px 12px",marginBottom:8,borderLeft:`3px solid ${urgencyColor[r.urgency]}`}}>
-              <div style={{display:"flex",gap:8,marginBottom:4}}><Badge text={r.urgency} color={urgencyColor[r.urgency]}/><span style={{fontFamily:"monospace",fontSize:11,fontWeight:700,color:C.text}}>{r.resource}</span></div>
-              <div style={{fontSize:11,color:C.warning,marginBottom:3}}>⚠ {r.issue}</div>
-              <div style={{fontSize:11,color:C.cyan}}>💡 {r.action}</div>
-            </div>
-          ))}
-        </GlowCard>
-      </div>
-    </div>
-  );
-}
-
-function DRTab({C,wlsServers,compute,databases}){
-  const [testing,setTesting]=useState(false);
-  const [testLog,setTestLog]=useState([]);
-  const drChecks=[{item:"DR-ADB-01 Sync",status:"SYNCHRONIZED",detail:"Lag: 2s",ok:true},{item:"DR-VCN Connectivity",status:"ACTIVE",detail:"IPSec up",ok:true},{item:"dr-app-01 Compute",status:"STOPPED",detail:"Ready to start",ok:true},{item:"WLS-DR-01 Standby",status:"STANDBY",detail:"Synchronized",ok:true},{item:"DNS Failover",status:"CONFIGURED",detail:"TTL 60s",ok:true},{item:"Backup Restore",status:"PASSED",detail:"Last: 10 Jan",ok:true},{item:"DR LB Config",status:"CONFIGURED",detail:"Ready",ok:true},{item:"Runbook",status:"OUTDATED",detail:"3 months old",ok:false}];
-  const score=Math.round((drChecks.filter(c=>c.ok).length/drChecks.length)*100);
-  const runTest=()=>{
-    setTesting(true);setTestLog([]);
-    const steps=["[INFO] Initiating DR Simulation...","[OK] ADB replication lag: 2s","[OK] IPSec tunnel active","[OK] DNS failover ready (60s TTL)","[OK] WLS-DR-01 in STANDBY","[OK] DR LB backends ready","[INFO] RTO estimate: ~15 min | RPO: ~5 min","[SUCCESS] DR Test PASSED — Score: "+score+"%"];
-    steps.forEach((l,i)=>setTimeout(()=>{setTestLog(p=>[...p,l]);if(i===steps.length-1)setTesting(false);},i*600));
-  };
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>🔁 DR Readiness</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Disaster Recovery · Failover readiness · RTO/RPO</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <GlowCard color={score>=90?C.green:score>=70?C.warning:C.danger} C={C}>
-          <div style={{textAlign:"center",padding:"16px 0"}}>
-            <div style={{position:"relative",width:130,height:130,margin:"0 auto 14px"}}>
-              <svg viewBox="0 0 36 36" style={{width:130,height:130,transform:"rotate(-90deg)"}}>
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke={C.dim} strokeWidth="3.5"/>
-                <circle cx="18" cy="18" r="15.9" fill="none" stroke={score>=90?C.green:score>=70?C.warning:C.danger} strokeWidth="3.5" strokeDasharray={`${score} ${100-score}`} strokeLinecap="round"/>
-              </svg>
-              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
-                <div style={{fontFamily:"monospace",fontSize:24,fontWeight:700,color:score>=90?C.green:score>=70?C.warning:C.danger}}>{score}%</div>
-                <div style={{fontSize:10,color:C.muted}}>DR Ready</div>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:16,justifyContent:"center",marginBottom:14}}>
-              <div style={{textAlign:"center"}}><div style={{fontFamily:"monospace",fontWeight:700,color:C.cyan,fontSize:16}}>~15 min</div><div style={{fontSize:10,color:C.muted}}>RTO</div></div>
-              <div style={{textAlign:"center"}}><div style={{fontFamily:"monospace",fontWeight:700,color:C.purple,fontSize:16}}>~5 min</div><div style={{fontSize:10,color:C.muted}}>RPO</div></div>
-            </div>
-            <Btn grad={testing?undefined:G.blue} color={C.blue} onClick={runTest} disabled={testing} C={C}>{testing?<span style={{display:"flex",alignItems:"center",gap:6}}><span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>⟳</span>Testing...</span>:"▶ Run DR Test"}</Btn>
+          <div style={{display:"flex",gap:7,alignItems:"center",flexShrink:0}}>
+            <Badge text={i.status} color={scol(i.status,C)}/>
+            <select value={i.status} onChange={e=>update(ref(db,"incidents/"+i.id),{status:e.target.value})} style={{padding:"4px 8px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:11,outline:"none",fontFamily:"inherit"}}>
+              {["OPEN","ACKNOWLEDGED","IN_PROGRESS","RESOLVED","CLOSED"].map(s=><option key={s}>{s}</option>)}
+            </select>
+            <button onClick={()=>remove(ref(db,"incidents/"+i.id))} style={{padding:"4px 10px",background:C.danger+"15",border:"1px solid "+C.danger+"33",borderRadius:4,color:C.danger,fontSize:11,cursor:"pointer",fontWeight:700}}>✕</button>
           </div>
-        </GlowCard>
-        <GlowCard color={C.cyan} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:15}}>🔍 Readiness Checks</div>
-          {drChecks.map((c,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-              <span style={{fontSize:14,flexShrink:0}}>{c.ok?"✅":"❌"}</span>
-              <div style={{flex:1}}><div style={{fontWeight:600,fontSize:12,color:c.ok?C.text:C.danger}}>{c.item}</div><div style={{fontSize:10,color:C.muted}}>{c.detail}</div></div>
-              <Badge text={c.status} color={c.ok?C.green:C.danger}/>
-            </div>
-          ))}
-        </GlowCard>
-      </div>
-      {testLog.length>0&&<GlowCard color={C.green} style={{marginTop:14}} C={C}><div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:13}}>🖥️ Test Log</div><Terminal lines={testLog} height={180} C={C}/></GlowCard>}
-    </div>
-  );
+        </div>
+      </Card>)}
+    </div>}
+  </div>;
 }
 
-function OnCallTab({C,user}){
-  const [roster,setRoster]=useState([{id:"o1",name:"Rajesh Kumar",email:"rajesh@gscoci.in",phone:"+91-98xxx-xxxx",role:"Primary On-Call",escalation:1,available:true},{id:"o2",name:"Priya Sharma",email:"priya@gscoci.in",phone:"+91-97xxx-xxxx",role:"Secondary On-Call",escalation:2,available:true},{id:"o3",name:"Amit Verma",email:"amit@gscoci.in",phone:"+91-96xxx-xxxx",role:"Escalation L2",escalation:3,available:true},{id:"o4",name:"Sneha Patel",email:"sneha@gscoci.in",phone:"+91-95xxx-xxxx",role:"OCI Admin",escalation:4,available:false}]);
+// ─── On-Call, DR, Patches, Cost, Visitors, Feedback, Activity, Audit ────────
+// (same as previous version - abbreviated here for space, they're included inline)
+
+function OnCallTab({C}) {
+  const [roster,setRoster]=useState([
+    {id:"o1",name:"Rajesh Kumar",email:"rajesh@gscoci.in",phone:"+919800000000",role:"Primary On-Call",escalation:1,available:true},
+    {id:"o2",name:"Priya Sharma",email:"priya@gscoci.in",phone:"+919700000000",role:"Secondary On-Call",escalation:2,available:true},
+    {id:"o3",name:"Amit Verma",email:"amit@gscoci.in",phone:"+919600000000",role:"Escalation L2",escalation:3,available:true},
+    {id:"o4",name:"Sneha Patel",email:"sneha@gscoci.in",phone:"+919500000000",role:"OCI Admin",escalation:4,available:false},
+  ]);
   const primary=roster.find(r=>r.escalation===1&&r.available);
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>👨‍💼 On-Call Roster</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Current on-call · Escalation chain · Contact details</p>
-      {primary&&(
-        <GlowCard color={C.danger} style={{marginBottom:16}} C={C}>
-          <div style={{fontSize:11,color:C.muted,marginBottom:12,letterSpacing:1,textTransform:"uppercase"}}>🔴 Primary On-Call Right Now</div>
-          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
-            <div style={{width:56,height:56,borderRadius:"50%",background:`${C.danger}20`,border:`2px solid ${C.danger}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:C.danger}}>{primary.name.split(" ").map(n=>n[0]).join("")}</div>
-            <div><div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:20,color:C.text}}>{primary.name}</div><div style={{fontSize:12,color:C.muted}}>{primary.role}</div></div>
-          </div>
-          <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:14}}>
-            <div style={{fontSize:12,color:C.muted}}>📧 {primary.email}</div>
-            <div style={{fontSize:12,color:C.muted}}>📱 {primary.phone}</div>
-          </div>
-          <div style={{display:"flex",gap:10}}>
-            <a href={`tel:${primary.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none"}}><Btn grad={G.green} sm C={C}>📞 Call Now</Btn></a>
-            <a href={`sms:${primary.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none"}}><Btn color={C.blue} sm C={C}>💬 Message</Btn></a>
-            <a href={`mailto:${primary.email}`} style={{textDecoration:"none"}}><Btn color={C.purple} sm C={C}>📧 Email</Btn></a>
-          </div>
-        </GlowCard>
-      )}
-      <GlowCard color={C.blue} C={C}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>📋 Escalation Chain</div>
-        {roster.sort((a,b)=>a.escalation-b.escalation).map(r=>(
-          <div key={r.id} style={{display:"flex",gap:12,alignItems:"center",padding:"11px 0",borderBottom:`1px solid ${C.border}`}}>
-            <div style={{width:30,height:30,borderRadius:"50%",background:`${r.available?C.green:C.muted}22`,border:`1px solid ${r.available?C.green:C.muted}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12,color:r.available?C.green:C.muted,flexShrink:0}}>{r.escalation}</div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:700,fontSize:14,color:C.text}}>{r.name}</div>
-              <div style={{fontSize:11,color:C.muted}}>{r.role} · {r.phone}</div>
-            </div>
-            <div style={{display:"flex",gap:6,flexShrink:0}}>
-              <a href={`tel:${r.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none",padding:"4px 10px",background:`${C.green}20`,border:`1px solid ${C.green}44`,borderRadius:8,color:C.green,fontSize:11,fontWeight:700,cursor:"pointer"}}>📞</a>
-              <a href={`sms:${r.phone.replace(/[^+\d]/g,"")}`} style={{textDecoration:"none",padding:"4px 10px",background:`${C.blue}20`,border:`1px solid ${C.blue}44`,borderRadius:8,color:C.blue,fontSize:11,fontWeight:700,cursor:"pointer"}}>💬</a>
-              <a href={`mailto:${r.email}`} style={{textDecoration:"none",padding:"4px 10px",background:`${C.purple}20`,border:`1px solid ${C.purple}44`,borderRadius:8,color:C.purple,fontSize:11,fontWeight:700,cursor:"pointer"}}>📧</a>
-            </div>
-            <div onClick={()=>setRoster(p=>p.map(x=>x.id===r.id?{...x,available:!x.available}:x))} style={{width:38,height:20,borderRadius:10,background:r.available?C.green:C.dim,cursor:"pointer",position:"relative",transition:"all .3s",flexShrink:0}}>
-              <div style={{position:"absolute",top:2,left:r.available?19:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .3s"}}/>
-            </div>
-          </div>
-        ))}
-      </GlowCard>
-    </div>
-  );
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>On-Call Roster</h2>
+    <p style={{color:C.muted,marginBottom:16,fontSize:12}}>Escalation chain · Direct contact</p>
+    {primary&&<Card color={C.danger} style={{marginBottom:14}} C={C}>
+      <div style={{fontSize:11,color:C.muted,marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>🔴 Primary On-Call Now</div>
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:14}}>
+        <div style={{width:52,height:52,borderRadius:"50%",background:C.danger+"20",border:"2px solid "+C.danger,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:C.danger}}>{primary.name.split(" ").map(n=>n[0]).join("")}</div>
+        <div><div style={{fontWeight:800,fontSize:18,color:C.text}}>{primary.name}</div><div style={{fontSize:12,color:C.muted}}>{primary.role} · {primary.phone}</div></div>
+      </div>
+      <div style={{display:"flex",gap:10}}><a href={"tel:"+primary.phone} style={{textDecoration:"none"}}><Btn color={C.success} sm C={C}>📞 Call</Btn></a><a href={"sms:"+primary.phone} style={{textDecoration:"none"}}><Btn color={C.blue} sm C={C}>💬 SMS</Btn></a><a href={"mailto:"+primary.email} style={{textDecoration:"none"}}><Btn color={C.purple} sm C={C}>📧 Email</Btn></a></div>
+    </Card>}
+    <Card color={C.blue} C={C}>
+      <div style={{fontWeight:700,marginBottom:12,fontSize:14}}>Escalation Chain</div>
+      {roster.sort((a,b)=>a.escalation-b.escalation).map(r=><div key={r.id} style={{display:"flex",gap:12,alignItems:"center",padding:"10px 0",borderBottom:"1px solid "+C.border}}>
+        <div style={{width:30,height:30,borderRadius:"50%",background:(r.available?C.success:C.muted)+"20",border:"1px solid "+(r.available?C.success:C.muted),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12,color:r.available?C.success:C.muted,flexShrink:0}}>{r.escalation}</div>
+        <div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:C.text}}>{r.name}</div><div style={{fontSize:11,color:C.muted}}>{r.role}</div></div>
+        <div style={{display:"flex",gap:6}}>
+          <a href={"tel:"+r.phone} style={{textDecoration:"none",padding:"4px 10px",background:C.success+"15",border:"1px solid "+C.success+"33",borderRadius:4,color:C.success,fontSize:11,fontWeight:700}}>📞</a>
+          <a href={"mailto:"+r.email} style={{textDecoration:"none",padding:"4px 10px",background:C.purple+"15",border:"1px solid "+C.purple+"33",borderRadius:4,color:C.purple,fontSize:11,fontWeight:700}}>📧</a>
+        </div>
+        <div onClick={()=>setRoster(p=>p.map(x=>x.id===r.id?{...x,available:!x.available}:x))} style={{width:38,height:20,borderRadius:10,background:r.available?C.success:C.dim,cursor:"pointer",position:"relative",flexShrink:0}}>
+          <div style={{position:"absolute",top:2,left:r.available?19:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .3s"}}/>
+        </div>
+      </div>)}
+    </Card>
+  </div>;
 }
 
-function DeploymentsTab({C,user,wlsServers,addToast}){
-  const [deployments,setDeployments]=useState([{id:"d1",app:"PaymentService",version:"v2.4.1",prevVersion:"v2.4.0",server:"WLS-PROD-01",env:"Production",status:"SUCCESS",deployedBy:"ops@gscoci.in",time:"2 hr ago",duration:"4m 32s",rollback:true},{id:"d2",app:"UserAuthService",version:"v1.8.3",prevVersion:"v1.8.2",server:"WLS-PROD-02",env:"Production",status:"SUCCESS",deployedBy:"admin@gscoci.in",time:"5 hr ago",duration:"3m 12s",rollback:true},{id:"d3",app:"ReportingEngine",version:"v3.1.0",prevVersion:"v3.0.9",server:"WLS-PROD-03",env:"Production",status:"FAILED",deployedBy:"ops@gscoci.in",time:"1 hr ago",duration:"1m 48s",rollback:false}]);
-  const [showForm,setShowForm]=useState(false);
-  const [form,setForm]=useState({app:"",version:"",server:"",env:"Production"});
-  const deploy=()=>{
-    if(!form.app||!form.version||!form.server)return;
-    const nd={id:`d${Date.now()}`,app:form.app,version:form.version,prevVersion:"previous",server:form.server,env:form.env,status:"IN_PROGRESS",deployedBy:user.name,time:"Just now",duration:"-",rollback:false};
-    setDeployments(p=>[nd,...p]);
-    setTimeout(()=>setDeployments(p=>p.map(d=>d.id===nd.id?{...d,status:"SUCCESS",duration:"3m 45s",rollback:true}:d)),8000);
-    addToast("🚀 Deployment started",`${form.app} ${form.version} deploying to ${form.server}`,C.blue,"🚀");
-    setShowForm(false);
+function DRTab({C}) {
+  const [log,setLog]=useState([]);
+  const [testing,setTesting]=useState(false);
+  const checks=[{item:"DR-ADB-01 Sync",status:"SYNCHRONIZED",detail:"Lag: 2s",ok:true},{item:"DR-VCN Connectivity",status:"ACTIVE",detail:"IPSec up",ok:true},{item:"dr-app-01",status:"STOPPED",detail:"Ready",ok:true},{item:"WLS-DR-01",status:"STANDBY",detail:"Sync'd",ok:true},{item:"DNS Failover",status:"CONFIGURED",detail:"TTL 60s",ok:true},{item:"Backup Restore",status:"PASSED",detail:"10 Jan",ok:true},{item:"DR LB Config",status:"CONFIGURED",detail:"Ready",ok:true},{item:"Runbook",status:"OUTDATED",detail:"3m old",ok:false}];
+  const score=Math.round((checks.filter(c=>c.ok).length/checks.length)*100);
+  const runTest=()=>{
+    setTesting(true);setLog([]);
+    ["[INFO] Initiating DR Simulation...","[OK] ADB lag: 2s","[OK] IPSec tunnel active","[OK] WLS-DR-01 STANDBY","[OK] DNS failover ready","[INFO] RTO: ~15 min | RPO: ~5 min","[SUCCESS] DR Test PASSED — "+score+"%"].forEach((l,i)=>setTimeout(()=>{setLog(p=>[...p,l]);if(i===6)setTesting(false);},i*600));
   };
-  return (
-    <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20}}>
-        <div><h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>🚀 Deployment Tracker</h2><p style={{color:C.muted,margin:0,fontSize:12}}>App releases · Rollback · History</p></div>
-        {(user.role==="admin"||user.role==="operator")&&<Btn grad={G.blue} color={C.blue} onClick={()=>setShowForm(!showForm)} C={C}>+ Deploy</Btn>}
-      </div>
-      {showForm&&(
-        <GlowCard color={C.blue} style={{marginBottom:14}} C={C}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <input value={form.app} onChange={e=>setForm(f=>({...f,app:e.target.value}))} placeholder="App name" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <input value={form.version} onChange={e=>setForm(f=>({...f,version:e.target.value}))} placeholder="Version (e.g. v2.5.0)" style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-            <select value={form.server} onChange={e=>setForm(f=>({...f,server:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              <option value="">Target server</option>{wlsServers.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
-            <select value={form.env} onChange={e=>setForm(f=>({...f,env:e.target.value}))} style={{padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>
-              {["Production","UAT","DR"].map(e=><option key={e}>{e}</option>)}
-            </select>
-          </div>
-          <div style={{display:"flex",gap:10,marginTop:12}}><Btn grad={G.blue} onClick={deploy} C={C}>🚀 Deploy</Btn><Btn onClick={()=>setShowForm(false)} C={C}>Cancel</Btn></div>
-        </GlowCard>
-      )}
-      <div style={{display:"flex",flexDirection:"column",gap:9}}>
-        {deployments.map(d=>(
-          <GlowCard key={d.id} color={statusColor(d.status,C)} style={{padding:"12px 16px"}} C={C}>
-            <div style={{display:"flex",gap:14,alignItems:"center"}}>
-              <div style={{width:38,height:38,borderRadius:11,background:`${statusColor(d.status,C)}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{d.status==="SUCCESS"?"✅":d.status==="FAILED"?"❌":d.status==="IN_PROGRESS"?<span style={{animation:"spin 1s linear infinite",display:"inline-block"}}>🔄</span>:"🚀"}</div>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:3,flexWrap:"wrap"}}><span style={{fontWeight:700,fontSize:14,color:C.text}}>{d.app}</span><Badge text={d.version} color={C.cyan}/><Badge text={d.env} color={d.env==="Production"?C.red:C.blue}/><Badge text={d.status} color={statusColor(d.status,C)}/></div>
-                <div style={{display:"flex",gap:10,fontSize:11,color:C.muted,flexWrap:"wrap"}}><span>🖥️ {d.server}</span><span>👤 {d.deployedBy}</span><span>🕐 {d.time}</span>{d.duration!=="-"&&<span>⏱ {d.duration}</span>}</div>
-              </div>
-              {d.rollback&&d.status==="SUCCESS"&&<Btn sm color={C.warning} onClick={()=>setDeployments(p=>p.map(x=>x.id===d.id?{...x,status:"ROLLBACK",version:x.prevVersion}:x))} C={C}>↩ Rollback</Btn>}
-            </div>
-          </GlowCard>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CostTab({C}){
-  const budget=150000,spent=98420,pct=Math.round((spent/budget)*100);
-  const breakdown=[{service:"Compute",spend:42000,pct:43},{service:"Autonomous DB",spend:28000,pct:28},{service:"Object Storage",spend:8500,pct:9},{service:"Load Balancer",spend:6200,pct:6},{service:"Kubernetes",spend:7800,pct:8},{service:"Networking",spend:3200,pct:3},{service:"Other",spend:2720,pct:3}];
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>💰 Cost & Budget</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Oracle Cloud monthly spend · ap-mumbai-1 + ap-hyderabad-1</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-        {[["Budget","₹"+budget.toLocaleString(),C.blue],["Spent","₹"+spent.toLocaleString(),pct>80?C.danger:C.green],["Last Month","₹1,02,300",C.muted],["Forecast","₹1,12,000",C.orange]].map(([l,v,c])=>(
-          <GlowCard key={l} color={c} style={{padding:"13px 14px"}} C={C}><div style={{fontFamily:"monospace",fontSize:20,fontWeight:700,color:c,marginBottom:4}}>{v}</div><div style={{fontSize:10,color:C.muted,letterSpacing:1}}>{l.toUpperCase()}</div></GlowCard>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:14}}>
-        <GlowCard color={C.yellow} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>💳 Spend Breakdown</div>
-          {breakdown.map(b=>(
-            <div key={b.service} style={{marginBottom:12}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12}}><span style={{color:C.text}}>{b.service}</span><span style={{fontWeight:700,color:C.yellow}}>₹{b.spend.toLocaleString()} ({b.pct}%)</span></div>
-              <div style={{height:7,background:C.dim,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${b.pct}%`,background:G.orange,borderRadius:3}}/></div>
-            </div>
-          ))}
-        </GlowCard>
-        <GlowCard color={C.green} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:15}}>📊 Budget Utilization</div>
-          <div style={{position:"relative",width:120,height:120,margin:"0 auto 14px"}}>
-            <svg viewBox="0 0 36 36" style={{width:120,height:120,transform:"rotate(-90deg)"}}>
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke={C.dim} strokeWidth="3.5"/>
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke={pct>80?C.danger:pct>65?C.warning:C.green} strokeWidth="3.5" strokeDasharray={`${pct} ${100-pct}`} strokeLinecap="round"/>
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>DR Readiness</h2>
+    <p style={{color:C.muted,marginBottom:16,fontSize:12}}>Disaster Recovery · RTO/RPO · Failover</p>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+      <Card color={score>=90?C.success:C.warning} C={C}>
+        <div style={{textAlign:"center",padding:"14px 0"}}>
+          <div style={{position:"relative",width:130,height:130,margin:"0 auto 16px"}}>
+            <svg viewBox="0 0 36 36" style={{width:130,height:130,transform:"rotate(-90deg)"}}>
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke={C.dim} strokeWidth="3"/>
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke={score>=90?C.success:C.warning} strokeWidth="3" strokeDasharray={score+" "+(100-score)} strokeLinecap="round"/>
             </svg>
             <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
-              <div style={{fontFamily:"monospace",fontSize:20,fontWeight:700,color:pct>80?C.danger:C.green}}>{pct}%</div>
-              <div style={{fontSize:10,color:C.muted}}>used</div>
+              <div style={{fontFamily:"monospace",fontSize:28,fontWeight:700,color:score>=90?C.success:C.warning}}>{score}%</div>
+              <div style={{fontSize:10,color:C.muted}}>DR Ready</div>
             </div>
           </div>
-          {[["Spent","₹"+spent.toLocaleString(),C.green],["Remaining","₹"+(budget-spent).toLocaleString(),C.blue],["vs Last Month","↓ Saving",C.green]].map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:12,color:C.muted}}>{l}</span><span style={{fontSize:12,fontWeight:700,color:c}}>{v}</span></div>
-          ))}
-        </GlowCard>
-      </div>
-    </div>
-  );
-}
-
-function SecurityTab({C}){
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>🔐 Security & IAM</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Identity · Policies · Compartments · Security Events</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
-        <GlowCard color={C.blue} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:14}}>🏢 Compartments</div>
-          {["Production","DR","UAT","Shared-Services"].map((c,i)=>(
-            <div key={c} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div><div style={{fontWeight:700,fontSize:13,color:C.text}}>{c}</div><div style={{fontSize:11,color:C.muted}}>{[28,12,10,8][i]} resources</div></div>
-              <Badge text="ACTIVE" color={C.green}/>
-            </div>
-          ))}
-        </GlowCard>
-        <GlowCard color={C.purple} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:14}}>📜 IAM Policies</div>
-          {["Prod-Admin-Policy","Prod-Read-Policy","DR-Access-Policy","UAT-Dev-Policy"].map(p=>(
-            <div key={p} style={{background:C.card2,borderRadius:9,padding:"9px 11px",marginBottom:7}}>
-              <div style={{fontWeight:700,fontSize:12,marginBottom:2,color:C.text}}>{p}</div>
-              <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:C.cyan}}>Active</span><Badge text="ACTIVE" color={C.green}/></div>
-            </div>
-          ))}
-        </GlowCard>
-        <GlowCard color={C.orange} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:14}}>🔍 Security Events</div>
-          {[["Login Success","admin@gscoci.in","2 min ago","INFO"],["Policy Updated","ops@gscoci.in","1 hr ago","WARNING"],["New API Key","svc@gscoci.in","3 hr ago","INFO"],["Failed Login","unknown","5 hr ago","CRITICAL"]].map(([type,u,time,sev])=>(
-            <div key={type} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><span style={{fontWeight:700,fontSize:12,color:C.text}}>{type}</span><Badge text={sev} color={sev==="CRITICAL"?C.danger:sev==="WARNING"?C.warning:C.blue}/></div>
-              <div style={{fontSize:11,color:C.muted}}>{u} · {time}</div>
-            </div>
-          ))}
-        </GlowCard>
-      </div>
-    </div>
-  );
-}
-
-function OperationsTab({C,wlsServers,compute,user,approvalList,handleOp,termLines,setTermLines}){
-  const [form,setForm]=useState({server:"",operation:"RESTART"});
-  const all=[...wlsServers.map(s=>({...s,type:"wls"})),...compute.map(c=>({...c,type:"compute"}))];
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>⚙️ Operations Center</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>{user.role==="admin"?"Admin — direct execution":"All ops require approval"}</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
-        <GlowCard color={C.blue} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:14,fontSize:15}}>Submit Operation</div>
-          <div style={{marginBottom:12}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:7,textTransform:"uppercase",letterSpacing:1}}>Target Resource</div>
-            <select value={form.server} onChange={e=>setForm(f=>({...f,server:e.target.value}))} style={{width:"100%",padding:"9px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}>
-              <option value="">Select resource…</option>
-              <optgroup label="WebLogic">{wlsServers.map(s=><option key={s.id} value={s.name}>{s.name} [{s.status}]</option>)}</optgroup>
-              <optgroup label="Compute">{compute.map(c=><option key={c.id} value={c.name}>{c.name} [{c.status}]</option>)}</optgroup>
-            </select>
+          <div style={{display:"flex",gap:20,justifyContent:"center",marginBottom:16}}>
+            <div style={{textAlign:"center"}}><div style={{fontFamily:"monospace",fontWeight:700,color:C.cyan,fontSize:16}}>~15 min</div><div style={{fontSize:10,color:C.muted}}>RTO</div></div>
+            <div style={{textAlign:"center"}}><div style={{fontFamily:"monospace",fontWeight:700,color:C.purple,fontSize:16}}>~5 min</div><div style={{fontSize:10,color:C.muted}}>RPO</div></div>
           </div>
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,color:C.muted,marginBottom:7,textTransform:"uppercase",letterSpacing:1}}>Operation</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
-              {[["RESTART","🔄",C.blue],["STOP","⏹️",C.danger],["START","▶️",C.green],["HEAPDUMP","💾",C.purple],["THREADDUMP","📋",C.teal],["PATCH","🔧",C.orange]].map(([op,icon,color])=>(
-                <button key={op} onClick={()=>setForm(f=>({...f,operation:op}))} style={{padding:"9px 5px",background:form.operation===op?`${color}22`:C.card2,border:`1px solid ${form.operation===op?color:C.border}`,borderRadius:9,cursor:"pointer",textAlign:"center"}}>
-                  <div style={{fontSize:19,marginBottom:2}}>{icon}</div>
-                  <div style={{fontSize:10,fontWeight:700,color:form.operation===op?color:C.muted}}>{op}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-          <Btn grad={user.role==="admin"?G.green:G.orange} color={user.role==="admin"?C.green:C.orange} onClick={()=>{if(!form.server)return;const res=all.find(r=>r.name===form.server);if(res)handleOp(res,form.operation,res.type);}} disabled={!form.server} style={{width:"100%",padding:12}} C={C}>
-            {user.role==="admin"?"⚡ Execute (with confirmation)":"📤 Submit for Approval"}
-          </Btn>
-        </GlowCard>
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          <GlowCard color={C.green} C={C}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:13,display:"flex",justifyContent:"space-between"}}><span>🖥️ Console</span><button onClick={()=>setTermLines(["[INFO] Cleared."])} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:5,color:C.muted,cursor:"pointer",fontSize:10,padding:"2px 7px"}}>Clear</button></div>
-            <Terminal lines={termLines} height={200} C={C}/>
-          </GlowCard>
-          <GlowCard color={C.warning} C={C}>
-            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:13}}>⏳ Pending</div>
-            {(approvalList||[]).filter(a=>a.status==="PENDING").length===0?<div style={{color:C.muted,fontSize:12}}>None pending.</div>
-              :(approvalList||[]).filter(a=>a.status==="PENDING").map(a=>(
-                <div key={a.id} style={{background:C.card2,borderRadius:8,padding:"8px 10px",marginBottom:6,borderLeft:`3px solid ${C.warning}`}}>
-                  <div style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:C.text}}>{a.operation} → {a.target}</div>
-                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>By {a.requestedBy} · {a.time}</div>
-                </div>
-              ))}
-          </GlowCard>
+          <Btn color={C.blue} onClick={runTest} disabled={testing} C={C}>{testing?"⟳ Testing...":"▶ Run DR Test"}</Btn>
         </div>
-      </div>
+      </Card>
+      <Card color={C.blue} C={C}>
+        <div style={{fontWeight:700,marginBottom:12,fontSize:14}}>Readiness Checks</div>
+        {checks.map((c,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid "+C.border}}>
+          <span style={{fontSize:14,flexShrink:0}}>{c.ok?"✅":"❌"}</span>
+          <div style={{flex:1}}><div style={{fontWeight:600,fontSize:12,color:c.ok?C.text:C.danger}}>{c.item}</div><div style={{fontSize:10,color:C.muted}}>{c.detail}</div></div>
+          <Badge text={c.status} color={c.ok?C.success:C.danger}/>
+        </div>)}
+      </Card>
     </div>
-  );
+    {log.length>0&&<Card color={C.success} style={{marginTop:14}} C={C}><div style={{fontWeight:700,marginBottom:10,fontSize:13}}>🖥 Test Log</div><Terminal lines={log} height={150} C={C}/></Card>}
+  </div>;
 }
 
-function ApprovalsTab({C,approvalList,user,wlsServers,executeOp,setTermLines}){
-  const [localTerm,setLocalTerm]=useState(["[INFO] Approval console ready..."]);
-  const canApprove=user.role==="admin"||user.role==="approver";
-  const approve=(item)=>{
-    update(ref(db,`approvals/${item.id}`),{status:"APPROVED",approvedBy:user.name,approvedAt:now()});
-    push(ref(db,"auditLogs"),{action:`APPROVED: ${item.operation} on ${item.target}`,user:user.name,time:now()});
-    setLocalTerm(p=>[...p,`[OK] APPROVED by ${user.name}`,`[INFO] Executing ${item.operation} on ${item.target}...`]);
-    if(item.resourceType==="wls"){const s=wlsServers.find(s=>s.name===item.target);if(s)executeOp(s.id,item.operation);}
-  };
-  const reject=(item)=>{
-    update(ref(db,`approvals/${item.id}`),{status:"REJECTED",rejectedBy:user.name,rejectedAt:now()});
-    push(ref(db,"auditLogs"),{action:`REJECTED: ${item.operation} on ${item.target}`,user:user.name,time:now()});
-    setLocalTerm(p=>[...p,`[WARN] REJECTED by ${user.name}`]);
-  };
-  const pending=(approvalList||[]).filter(a=>a.status==="PENDING");
-  const history=(approvalList||[]).filter(a=>a.status!=="PENDING");
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>✅ Change Approvals</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Review operations · Approve or reject · All logged</p>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 360px",gap:16}}>
-        <div>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:13,color:C.warning}}>⏳ Pending ({pending.length})</div>
-          {pending.length===0&&<GlowCard color={C.green} style={{textAlign:"center",padding:20,marginBottom:12}} C={C}><div style={{color:C.muted,fontSize:13}}>✅ No pending</div></GlowCard>}
-          {pending.map(a=>(
-            <GlowCard key={a.id} color={C.warning} style={{marginBottom:10}} C={C}>
-              <div style={{marginBottom:10}}>
-                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}><span style={{fontFamily:"monospace",fontWeight:800,fontSize:16,color:C.warning}}>{a.operation}</span><Badge text={a.target} color={C.blue}/><Badge text={a.priority||"Normal"} color={a.priority==="Emergency"?C.danger:C.blue}/></div>
-                <p style={{color:C.muted,fontSize:12,margin:"0 0 5px",lineHeight:1.4}}>{a.reason}</p>
-                <div style={{fontSize:11,color:C.muted}}>By <strong style={{color:C.text}}>{a.requestedBy}</strong> · {a.time}</div>
-              </div>
-              {canApprove&&<div style={{display:"flex",gap:10}}><Btn grad={G.green} color={C.green} onClick={()=>approve(a)} style={{flex:1}} C={C}>✅ Approve & Execute</Btn><Btn color={C.danger} onClick={()=>reject(a)} style={{flex:1}} C={C}>❌ Reject</Btn></div>}
-            </GlowCard>
-          ))}
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:8,fontSize:13,color:C.muted,marginTop:14}}>📜 History</div>
-          {history.map(a=>(
-            <div key={a.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",marginBottom:6,borderLeft:`3px solid ${a.status==="APPROVED"?C.green:C.danger}`}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:700,fontSize:11,fontFamily:"monospace",color:C.text}}>{a.operation} → {a.target}</div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{a.requestedBy} · {a.time}</div></div><Badge text={a.status} color={a.status==="APPROVED"?C.green:C.danger}/></div>
-            </div>
-          ))}
+function PatchesTab({C,user,addToast,record}) {
+  const [patches,setPatches]=useState([
+    {id:"p1",name:"Oracle JDK 17.0.10",server:"ALL WLS",priority:"Critical",status:"PENDING",cve:"CVE-2024-20918",impact:"Security"},
+    {id:"p2",name:"WebLogic 14.1.1 PSU",server:"ALL WLS",priority:"High",status:"SCHEDULED",cve:"CVE-2024-21006",impact:"Security+Perf"},
+    {id:"p3",name:"Oracle Linux 8.9",server:"ALL Compute",priority:"Medium",status:"COMPLETED",cve:"N/A",impact:"OS Security"},
+    {id:"p4",name:"ADB Maintenance",server:"PROD-ADB-01",priority:"High",status:"PENDING",cve:"N/A",impact:"Database"},
+  ]);
+  const upd=(id,status)=>{setPatches(p=>p.map(x=>x.id===id?{...x,status}:x));addToast("Patch updated","",C.success,"📦");};
+  const pc={Critical:C.danger,High:C.warning,Medium:C.orange,Low:C.success};
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:16}}>Patch Management</h2>
+    <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {patches.map(p=><Card key={p.id} color={pc[p.priority]||C.blue} style={{padding:"13px 16px"}} C={C}>
+        <div style={{display:"flex",gap:14,alignItems:"center"}}>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:4,flexWrap:"wrap"}}><span style={{fontWeight:700,fontSize:13,color:C.text}}>{p.name}</span><Badge text={p.priority} color={pc[p.priority]||C.blue}/><Badge text={p.impact} color={C.cyan}/>{p.cve!=="N/A"&&<Badge text={p.cve} color={C.danger}/>}</div>
+            <div style={{fontSize:11,color:C.muted}}>🖥 {p.server}</div>
+          </div>
+          <div style={{display:"flex",gap:8,flexShrink:0,alignItems:"center"}}>
+            <Badge text={p.status} color={scol(p.status,C)}/>
+            {p.status==="PENDING"&&<Btn sm color={C.blue} onClick={()=>upd(p.id,"SCHEDULED")} C={C}>📅 Schedule</Btn>}
+            {p.status==="SCHEDULED"&&<Btn sm color={C.success} onClick={()=>upd(p.id,"COMPLETED")} C={C}>✅ Done</Btn>}
+          </div>
         </div>
-        <GlowCard color={C.green} style={{height:"fit-content",position:"sticky",top:80}} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:13}}>🖥️ Execution Console</div>
-          <Terminal lines={localTerm} height={320} C={C}/>
-        </GlowCard>
-      </div>
+      </Card>)}
     </div>
-  );
+  </div>;
 }
 
-function IssuesTab({C,issues,setIssues,servers}){
-  const [termLines,setTermLines]=useState(["[INFO] Troubleshoot engine ready...","[INFO] Click an issue to analyze."]);
-  const [filter,setFilter]=useState("ACTIVE");
-  const troubleshoot=(issue)=>{
-    const steps={"Memory Leak":["[INFO] Reading heap histogram...","[WARN] Large retention: 2.4GB","[INFO] Triggering GC...","[OK] GC freed 800MB","[SUCCESS] Fix: Increase -Xmx4g"],"Thread Starvation":["[INFO] Dumping threads...","[WARN] 45 BLOCKED","[SUCCESS] Fix: Increase DB pool"],"High CPU":["[INFO] Profiling...","[SUCCESS] Fix: Cache XML"],"GC Overhead":["[INFO] Parsing GC logs...","[SUCCESS] Fix: Switch to G1GC"]};
-    const s=steps[issue.type]||["[INFO] Running diagnostics...","[SUCCESS] Analysis complete"];
-    setTermLines(["[INFO] Analyzing: "+issue.type+" on "+issue.server]);
-    s.forEach((l,i)=>setTimeout(()=>setTermLines(p=>[...p,l]),i*700));
+function CostTab({C}) {
+  const budget=150000,spent=98420,pct=Math.round((spent/budget)*100);
+  const bd=[{service:"Compute",spend:42000,pct:43},{service:"Autonomous DB",spend:28000,pct:28},{service:"Object Storage",spend:8500,pct:9},{service:"Kubernetes",spend:7800,pct:8},{service:"Load Balancer",spend:6200,pct:6},{service:"Functions+WAF",spend:5920,pct:4}];
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:16}}>Cost & Budget</h2>
+    <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:14}}>
+      <Card color={C.orange} C={C}>
+        <div style={{fontWeight:700,marginBottom:14,fontSize:14}}>Spend by Service</div>
+        {bd.map(b=><div key={b.service} style={{marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:5,fontSize:12}}><span style={{color:C.text}}>{b.service}</span><span style={{fontWeight:700,color:C.orange}}>₹{b.spend.toLocaleString()} ({b.pct}%)</span></div>
+          <div style={{height:7,background:C.dim,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:b.pct+"%",background:C.red,borderRadius:2}}/></div>
+        </div>)}
+      </Card>
+      <Card color={C.success} C={C}>
+        <div style={{fontWeight:700,marginBottom:14,fontSize:14}}>Budget Utilization</div>
+        <div style={{position:"relative",width:120,height:120,margin:"0 auto 16px"}}>
+          <svg viewBox="0 0 36 36" style={{width:120,height:120,transform:"rotate(-90deg)"}}>
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke={C.dim} strokeWidth="3"/>
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke={pct>80?C.danger:C.success} strokeWidth="3" strokeDasharray={pct+" "+(100-pct)} strokeLinecap="round"/>
+          </svg>
+          <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column"}}>
+            <div style={{fontFamily:"monospace",fontSize:22,fontWeight:700,color:pct>80?C.danger:C.success}}>{pct}%</div>
+            <div style={{fontSize:10,color:C.muted}}>used</div>
+          </div>
+        </div>
+        {[["Budget","₹"+budget.toLocaleString(),C.blue],["Spent","₹"+spent.toLocaleString(),C.success],["Remaining","₹"+(budget-spent).toLocaleString(),C.cyan]].map(([l,v,c])=><div key={l} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid "+C.border}}><span style={{fontSize:12,color:C.muted}}>{l}</span><span style={{fontSize:12,fontWeight:700,color:c}}>{v}</span></div>)}
+      </Card>
+    </div>
+  </div>;
+}
+
+function VisitorsTab({C,visitorList}) {
+  const now=new Date();
+  const [filter,setFilter]=useState("TODAY");
+  const filtered=visitorList.filter(v=>{
+    const vd=new Date(v.timestamp||Date.now());
+    if(filter==="TODAY") return vd.toDateString()===now.toDateString();
+    if(filter==="WEEK") return (now-vd)<7*86400000;
+    return true;
+  }).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0));
+  const todayCount=visitorList.filter(v=>new Date(v.timestamp||0).toDateString()===now.toDateString()).length;
+  const uniqueTimezones=[...new Set(visitorList.map(v=>v.timezone).filter(Boolean))];
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>👤 Visitor Tracking</h2>
+    <p style={{color:C.muted,marginBottom:16,fontSize:12}}>Every site visit to lakhshit.in is logged</p>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
+      {[["Total",visitorList.length,C.blue],["Today",todayCount,C.cyan],["Timezones",uniqueTimezones.length,C.purple],["This Week",visitorList.filter(v=>(now-new Date(v.timestamp||0))<7*86400000).length,C.orange]].map(([l,v,c])=><Card key={l} color={c} style={{padding:"14px 16px"}} C={C}><div style={{fontFamily:"monospace",fontSize:22,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:6,textTransform:"uppercase"}}>{l}</div></Card>)}
+    </div>
+    <Card color={C.blue} C={C}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{fontWeight:700,fontSize:14}}>Visit Log</div>
+        <div style={{display:"flex",gap:7}}>{["TODAY","WEEK","ALL"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"4px 12px",borderRadius:3,border:"1px solid "+(filter===f?C.red:C.border),background:filter===f?C.red+"15":"transparent",color:filter===f?C.red:C.muted,fontSize:11,cursor:"pointer",fontWeight:700}}>{f}</button>)}</div>
+      </div>
+      {filtered.length===0?<div style={{color:C.muted,textAlign:"center",padding:30}}>No visits yet.</div>:<div style={{maxHeight:400,overflowY:"auto"}}>
+        {filtered.map((v,i)=><div key={v.id||i} style={{padding:"10px 0",borderBottom:"1px solid "+C.border}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{fontSize:18}}>🌍</span><div><div style={{fontWeight:600,fontSize:12,color:C.text}}>{v.timezone||"Unknown"}</div><div style={{fontSize:10,color:C.muted}}>{v.platform||"Unknown"}</div></div></div>
+            <div style={{fontSize:10,color:C.muted,fontFamily:"monospace",textAlign:"right"}}><div>{v.time}</div><div style={{marginTop:2}}>{v.screenSize||""}</div></div>
+          </div>
+          <div style={{fontSize:10,color:C.dim,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(v.browser||"").slice(0,80)}</div>
+        </div>)}
+      </div>}
+    </Card>
+  </div>;
+}
+
+function FeedbackTab({C,feedbackList,user,addToast,record}) {
+  const [form,setForm]=useState({name:"",email:"",rating:5,category:"General",message:""});
+  const [submitted,setSubmitted]=useState(false);
+  const [view,setView]=useState(user.role==="admin"||user.role==="approver"?"LIST":"FORM");
+  const submit=()=>{
+    if(!form.message.trim()) return;
+    push(ref(db,"feedback"),{...form,submittedAt:nowStr(),timestamp:new Date().toISOString(),submittedBy:user.name});
+    record("FEEDBACK",{description:user.name+" submitted feedback: "+form.category+" ("+form.rating+"★)"});
+    setSubmitted(true);addToast("Feedback submitted!","Thank you",C.success,"💬");
+    setTimeout(()=>setSubmitted(false),3000);
+    setForm({name:"",email:"",rating:5,category:"General",message:""});
   };
-  const filtered=filter==="ALL"?issues:filter==="ACTIVE"?issues.filter(i=>i.status!=="RESOLVED"):issues.filter(i=>i.severity===filter);
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>🔥 Issues & Troubleshooting</h2>
-      <p style={{color:C.muted,marginBottom:14,fontSize:12}}>Auto-detected · Click to analyze</p>
-      <div style={{display:"flex",gap:7,marginBottom:14,flexWrap:"wrap"}}>
-        {["ACTIVE","ALL","CRITICAL","WARNING"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{padding:"4px 12px",borderRadius:20,border:`1px solid ${filter===f?C.red:C.border}`,background:filter===f?`${C.red}20`:"transparent",color:filter===f?C.red:C.muted,fontSize:11,cursor:"pointer",fontWeight:700}}>{f}</button>)}
+  const avgRating=feedbackList.length>0?(feedbackList.reduce((a,f)=>a+(f.rating||5),0)/feedbackList.length).toFixed(1):"N/A";
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>💬 Feedback</h2>
+    <p style={{color:C.muted,marginBottom:16,fontSize:12}}>Share feedback about the platform</p>
+    {(user.role==="admin"||user.role==="approver")&&<div style={{display:"flex",gap:8,marginBottom:16}}>
+      {[["FORM","📝 Submit"],["LIST","📋 View All ("+feedbackList.length+")"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"7px 18px",borderRadius:3,border:"1px solid "+(view===v?C.red:C.border),background:view===v?C.red+"15":"transparent",color:view===v?C.red:C.muted,fontSize:12,cursor:"pointer",fontWeight:700}}>{l}</button>)}
+    </div>}
+    {view==="LIST"?<div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:16}}>
+        {[["Total",feedbackList.length,C.blue],["Avg Rating",avgRating+"★",C.yellow],["This Week",feedbackList.filter(f=>(new Date()-new Date(f.timestamp||0))<7*86400000).length,C.cyan]].map(([l,v,c])=><Card key={l} color={c} style={{padding:"14px 16px"}} C={C}><div style={{fontFamily:"monospace",fontSize:22,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:6,textTransform:"uppercase"}}>{l}</div></Card>)}
+      </div>
+      <Card color={C.blue} C={C}>
+        {feedbackList.length===0?<div style={{color:C.muted,textAlign:"center",padding:30}}>No feedback yet.</div>:[...feedbackList].reverse().map((f,i)=><div key={f.id||i} style={{padding:"12px 0",borderBottom:"1px solid "+C.border}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}><div style={{display:"flex",gap:8,alignItems:"center"}}><Badge text={f.category||"General"} color={C.blue}/><span style={{color:C.yellow,fontWeight:700,fontSize:14}}>{"★".repeat(f.rating||5)}</span></div><span style={{fontSize:10,color:C.muted}}>{f.submittedAt}</span></div>
+          <div style={{fontSize:13,color:C.text,marginBottom:4,lineHeight:1.5}}>{f.message}</div>
+          <div style={{fontSize:11,color:C.muted}}>By {f.name||f.submittedBy||"Anonymous"}{f.email?" · "+f.email:""}</div>
+        </div>)}
+      </Card>
+    </div>:<Card color={C.blue} style={{maxWidth:600}} C={C}>
+      <div style={{fontWeight:700,marginBottom:20,fontSize:16}}>Share Your Feedback</div>
+      {submitted&&<div style={{background:C.success+"15",border:"1px solid "+C.success+"44",borderRadius:4,padding:"12px 16px",marginBottom:16,color:C.success,fontWeight:700}}>✅ Thank you for your feedback!</div>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Your name" C={C}/>
+        <Inp value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="Email (optional)" C={C}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+        <Sel value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))} C={C}>{["General","Bug Report","Feature Request","Performance","UI/UX","Praise"].map(c=><option key={c}>{c}</option>)}</Sel>
+        <div><div style={{fontSize:11,color:C.muted,marginBottom:6}}>Rating</div><div style={{display:"flex",gap:6}}>{[1,2,3,4,5].map(r=><button key={r} onClick={()=>setForm(f=>({...f,rating:r}))} style={{fontSize:22,background:"none",border:"none",cursor:"pointer",opacity:r<=form.rating?1:.3,transition:"opacity .2s"}}>★</button>)}</div></div>
+      </div>
+      <Inp value={form.message} onChange={e=>setForm(f=>({...f,message:e.target.value}))} placeholder="Your message *" rows={4} style={{marginBottom:16}} C={C}/>
+      <Btn color={C.red} onClick={submit} disabled={!form.message.trim()} style={{width:"100%",padding:12,justifyContent:"center"}} C={C}>💬 Submit Feedback</Btn>
+    </Card>}
+  </div>;
+}
+
+function ActivityTab({C,activityList,user}) {
+  const [filter,setFilter]=useState("ALL");
+  const [search,setSearch]=useState("");
+  const [dateFilter,setDateFilter]=useState("TODAY");
+  const now=new Date();
+  const filtered=activityList.filter(a=>{
+    const ad=new Date(a.timestamp||Date.now());
+    const mDate=dateFilter==="ALL"?true:dateFilter==="TODAY"?ad.toDateString()===now.toDateString():(now-ad)<7*86400000;
+    const mType=filter==="ALL"?true:a.type===filter;
+    const mSearch=search===""?true:((a.description||"")+(a.user||"")+(a.label||"")).toLowerCase().includes(search.toLowerCase());
+    return mDate&&mType&&mSearch;
+  }).sort((a,b)=>new Date(b.timestamp||0)-new Date(a.timestamp||0));
+  const exportCSV=()=>{
+    const rows=[["Time","User","Role","Action","Description"],...filtered.map(a=>[a.time,a.user,a.role,a.label,(a.description||"").replace(/,/g,";")])];
+    const csv=rows.map(r=>r.join(",")).join("\n");
+    const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    const l=document.createElement("a");l.href=url;l.download="gsc_activity_"+new Date().toISOString().slice(0,10)+".csv";l.click();
+  };
+  const todayCount=activityList.filter(a=>new Date(a.timestamp||0).toDateString()===now.toDateString()).length;
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20,flexWrap:"wrap",gap:10}}>
+      <div><h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>📹 Activity Recording</h2><p style={{color:C.muted,margin:0,fontSize:12}}>Every action recorded · {activityList.length} total events</p></div>
+      <button onClick={exportCSV} style={{padding:"8px 16px",background:C.success+"20",border:"1px solid "+C.success+"44",borderRadius:4,color:C.success,fontWeight:700,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>📥 Export CSV</button>
+    </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
+      {[["Total",activityList.length,C.blue,"📊"],["Today",todayCount,C.cyan,"📅"],["Ops",activityList.filter(a=>["OP_EXECUTE","OP_SUBMIT"].includes(a.type)).length,C.success,"⚡"],["Deploys",activityList.filter(a=>a.type==="DEPLOY").length,C.red,"🚀"],["Logins",activityList.filter(a=>a.type==="LOGIN").length,C.teal,"🔐"]].map(s=><Card key={s[0]} color={s[2]} style={{padding:"12px 14px"}} C={C}><div style={{fontFamily:"monospace",fontSize:20,fontWeight:700,color:s[2]}}>{s[1]}</div><div style={{fontSize:9,color:C.muted,marginTop:4}}>{s[3]} {s[0].toUpperCase()}</div></Card>)}
+    </div>
+    <div style={{background:C.card,border:"1px solid "+C.border,borderRadius:4,padding:"12px 14px",marginBottom:14,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search..." style={{padding:"7px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:12,outline:"none",fontFamily:"inherit",minWidth:160}}/>
+      <select value={dateFilter} onChange={e=>setDateFilter(e.target.value)} style={{padding:"7px 10px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:12,outline:"none",fontFamily:"inherit"}}>{[["TODAY","Today"],["WEEK","This Week"],["ALL","All Time"]].map(o=><option key={o[0]} value={o[0]}>{o[1]}</option>)}</select>
+      <select value={filter} onChange={e=>setFilter(e.target.value)} style={{padding:"7px 10px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:12,outline:"none",fontFamily:"inherit"}}><option value="ALL">All Actions</option>{Object.entries(AT).map(e=><option key={e[0]} value={e[0]}>{e[1].icon} {e[1].label}</option>)}</select>
+      <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>{filtered.length} records</span>
+    </div>
+    <div style={{position:"relative"}}>
+      <div style={{position:"absolute",left:19,top:0,bottom:0,width:2,background:C.border}}/>
+      {filtered.length===0&&<Card color={C.blue} style={{textAlign:"center",padding:40}} C={C}><div style={{color:C.muted}}>No activity recorded yet.</div></Card>}
+      {filtered.map(a=><div key={a.id} style={{display:"flex",gap:12,marginBottom:8,position:"relative",zIndex:1}}>
+        <div style={{width:38,height:38,borderRadius:"50%",background:C.card,border:"2px solid "+(a.color||C.blue),display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{a.icon||"📌"}</div>
+        <div style={{flex:1,background:C.card,border:"1px solid "+C.border,borderRadius:4,padding:"10px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:5}}>
+            <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}><span style={{fontWeight:700,fontSize:12,color:a.color||C.blue}}>{a.label}</span><Badge text={a.role} color={C.purple}/><span style={{fontWeight:600,fontSize:12,color:C.text}}>{a.user}</span></div>
+            <span style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{a.time}</span>
+          </div>
+          {a.description&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>{a.description}</div>}
+          <div style={{display:"flex",gap:7,marginTop:5,flexWrap:"wrap"}}>{a.operation&&<Badge text={a.operation} color={C.orange}/>}{a.target&&<Badge text={a.target} color={C.blue}/>}</div>
+        </div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function AuditTab({C,auditList}) {
+  return <div>
+    <h2 style={{fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>Audit Log</h2>
+    <p style={{color:C.muted,marginBottom:16,fontSize:12}}>Immutable operations record · {auditList.length} entries</p>
+    {auditList.length===0?<Card color={C.blue} style={{textAlign:"center",padding:40}} C={C}><div style={{color:C.muted}}>No records yet.</div></Card>:<div style={{display:"flex",flexDirection:"column",gap:6}}>
+      {[...auditList].reverse().map((a,i)=><Card key={a.id} color={a.action?.includes("APPROVED")?C.success:a.action?.includes("REJECTED")?C.danger:a.action?.includes("DEPLOYED")?C.blue:C.red} style={{padding:"10px 14px"}} C={C}>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <div style={{width:28,height:28,borderRadius:"50%",background:C.bg,border:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>{a.action?.includes("APPROVED")?"✅":a.action?.includes("REJECTED")?"❌":a.action?.includes("DEPLOYED")?"🚀":"⚡"}</div>
+          <div style={{flex:1}}><div style={{fontWeight:700,fontSize:12,fontFamily:"monospace",color:C.text}}>{a.action}</div><div style={{color:C.muted,fontSize:10,marginTop:2}}>by {a.user} · {a.time}</div></div>
+          <div style={{fontFamily:"monospace",fontSize:10,color:C.dim}}>#{auditList.length-i}</div>
+        </div>
+      </Card>)}
+    </div>}
+  </div>;
+}
+
+// ─── PDC App Monitor Tab ───────────────────────────────────────────────────
+function PDCMonitorTab({C,wls,realMode,addToast,proxyStatus}) {
+  const [health,setHealth]=useState(null);
+  const [metrics,setMetrics]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [err,setErr]=useState(null);
+  const [port,setPort]=useState("8001");
+  const [history,setHistory]=useState([]);
+  const [pollInterval,setPollInterval]=useState(null);
+  const [autoRefresh,setAutoRefresh]=useState(false);
+
+  const fetchPDC=async(p)=>{
+    const base=realMode?`${PROXY_URL}/pdc-proxy/${p||port}`:`http://localhost:${p||port}`;
+    setLoading(true); setErr(null);
+    try {
+      const [h,m]=await Promise.all([
+        fetch(`${base}/pdc/api/health`,{signal:AbortSignal.timeout(4000)}).then(r=>r.json()),
+        fetch(`${base}/pdc/api/metrics`,{signal:AbortSignal.timeout(4000)}).then(r=>r.json()),
+      ]);
+      setHealth(h); setMetrics(m);
+      setHistory(prev=>[{time:new Date().toLocaleTimeString("en-IN"),heapPct:h.jvm?.heapPct||0,threads:h.threads?.liveCount||0,status:h.status||"UP"},...prev].slice(0,20));
+      setErr(null);
+    } catch(e) {
+      setErr(e.message.includes("Failed to fetch")||e.message.includes("abort")?"Cannot reach PDC app at port "+port+". Is it deployed and running?":e.message);
+    } finally { setLoading(false); }
+  };
+
+  useEffect(()=>{ fetchPDC(); },[]);
+
+  useEffect(()=>{
+    if(autoRefresh) { const t=setInterval(fetchPDC,5000); setPollInterval(t); return ()=>clearInterval(t); }
+    else { if(pollInterval) { clearInterval(pollInterval); setPollInterval(null); } }
+  },[autoRefresh,port]);
+
+  const heapPct=health?.jvm?.heapPct||0;
+  const threadCount=health?.threads?.liveCount||0;
+  const heapColor=heapPct>85?C.danger:heapPct>70?C.warning:C.success;
+  const sparkPts=history.slice().reverse().map((h,i)=>`${i*28},${80-(h.heapPct||0)*0.75}`).join(" ");
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>📦 PDC App Monitor</h2>
+        <p style={{color:C.muted,margin:0,fontSize:12}}>Live health from deployed PDC application · WebLogic managed server</p>
+      </div>
+      <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+          <span style={{fontSize:12,color:C.muted}}>Port:</span>
+          <select value={port} onChange={e=>{setPort(e.target.value);fetchPDC(e.target.value);}} style={{padding:"6px 10px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:12,outline:"none",fontFamily:"inherit"}}>
+            {["8001","8002","8003","7001"].map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:11,color:C.muted}}>Auto-refresh 5s</span>
+          <div onClick={()=>setAutoRefresh(!autoRefresh)} style={{width:36,height:20,borderRadius:10,background:autoRefresh?C.success:C.dim,cursor:"pointer",position:"relative",transition:"background .2s"}}>
+            <div style={{position:"absolute",top:2,left:autoRefresh?17:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .25s"}}/>
+          </div>
+        </div>
+        <button onClick={()=>fetchPDC()} style={{padding:"7px 16px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>↻ Refresh</button>
+      </div>
+    </div>
+
+    {/* Connection Status Banner */}
+    <div style={{marginBottom:14,padding:"10px 16px",background:err?C.danger+"12":health?C.success+"12":C.blue+"12",border:"1px solid "+(err?C.danger:health?C.success:C.blue)+"33",borderRadius:4,display:"flex",alignItems:"center",gap:10}}>
+      <Pulse color={err?C.danger:health?C.success:C.blue} size={8}/>
+      <span style={{fontWeight:700,fontSize:13,color:err?C.danger:health?C.success:C.text}}>{loading?"Checking PDC app...":err?"PDC App Unreachable":health?.status==="UP"?"PDC App is RUNNING on port "+port:"Unknown state"}</span>
+      {err&&<span style={{fontSize:11,color:C.muted}}>{err}</span>}
+      {!err&&!loading&&<span style={{marginLeft:"auto",fontSize:11,color:C.muted}}>http://localhost:{port}/pdc/</span>}
+    </div>
+
+    {err&&<Card color={C.warning} C={C} style={{marginBottom:16}}>
+      <div style={{fontWeight:700,marginBottom:10,fontSize:14}}>🔧 How to get PDC App running</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {[["1","Build PDC app","cd wls-package/pdc-app && mvn clean package"],["2","Start WLS environment","cd scripts && ./gsc-wls.sh start-env"],["3","Deploy PDC app","./gsc-wls.sh deploy-pdc prod"],["4","Verify","curl http://localhost:8001/pdc/health"]].map(([n,label,cmd])=><div key={n} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+          <div style={{width:22,height:22,borderRadius:"50%",background:C.red,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{n}</div>
+          <div><div style={{fontWeight:700,fontSize:12,color:C.text,marginBottom:3}}>{label}</div><code style={{fontSize:11,background:C.bg,padding:"3px 8px",borderRadius:3,color:C.cyan,border:"1px solid "+C.border,display:"block"}}>{cmd}</code></div>
+        </div>)}
+      </div>
+    </Card>}
+
+    {health&&!err&&<>
+      {/* KPI Row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:16}}>
+        {[{l:"Status",v:health.status||"UP",c:C.success,i:"✅"},{l:"App Version",v:health.version||"1.0.0",c:C.blue,i:"📌"},{l:"Server",v:health.serverInfo?.split(" ")[0]||"WLS",c:C.red,i:"⚡"},{l:"Env",v:health.env||"PROD",c:C.orange,i:"🏷"}].map(s=><Card key={s.l} color={s.c} style={{padding:"13px 14px"}} C={C}>
+          <div style={{fontFamily:"monospace",fontWeight:700,fontSize:16,color:s.c}}>{s.i} {s.v}</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:5,textTransform:"uppercase"}}>{s.l}</div>
+        </Card>)}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+        {/* JVM */}
+        <Card color={heapColor} C={C}>
+          <div style={{fontWeight:700,marginBottom:14,fontSize:14,display:"flex",justifyContent:"space-between"}}>
+            <span>💾 JVM Memory</span>
+            <span style={{fontFamily:"monospace",fontSize:18,color:heapColor}}>{heapPct}%</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+            {[["Used",health.jvm?.heapUsedMB+"MB",heapColor],["Max",health.jvm?.heapMaxMB+"MB",C.blue],["CPUs",health.jvm?.processors||metrics?.os?.processors||"-",C.purple]].map(([l,v,c])=><div key={l} style={{background:C.bg,border:"1px solid "+C.border,borderRadius:3,padding:"8px 6px",textAlign:"center"}}>
+              <div style={{fontFamily:"monospace",fontSize:14,fontWeight:700,color:c}}>{v}</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:3}}>{l}</div>
+            </div>)}
+          </div>
+          <div style={{height:7,background:C.dim,borderRadius:3,overflow:"hidden",marginBottom:6}}>
+            <div style={{height:"100%",width:heapPct+"%",background:heapColor,borderRadius:3,transition:"width .6s"}}/>
+          </div>
+          <div style={{fontSize:10,color:C.muted}}>{heapPct>85?"⚠ High — consider restart or increase -Xmx":heapPct>70?"Monitor — approaching threshold":"Heap healthy"}</div>
+        </Card>
+
+        {/* Threads */}
+        <Card color={C.cyan} C={C}>
+          <div style={{fontWeight:700,marginBottom:14,fontSize:14}}>🧵 Threads</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+            {[["Live Threads",health.threads?.liveCount,C.text],["Peak",health.threads?.peakCount,C.cyan],["Daemon",health.threads?.daemonCount,C.purple],["Deadlocked",health.threads?.deadlocked||0,health.threads?.deadlocked>0?C.danger:C.success]].map(([l,v,c])=><div key={l} style={{background:C.bg,border:"1px solid "+C.border,borderRadius:3,padding:"9px 8px"}}>
+              <div style={{fontFamily:"monospace",fontSize:18,fontWeight:700,color:c}}>{v}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:3}}>{l}</div>
+            </div>)}
+          </div>
+          {health.threads?.deadlocked>0&&<div style={{background:C.danger+"15",border:"1px solid "+C.danger+"33",borderRadius:4,padding:"8px 10px",fontSize:11,color:C.danger,fontWeight:700}}>⚠ Deadlocked threads detected — restart server!</div>}
+        </Card>
+      </div>
+
+      {/* GC Stats from metrics */}
+      {metrics?.gc&&metrics.gc.length>0&&<Card color={C.purple} style={{marginBottom:14}} C={C}>
+        <div style={{fontWeight:700,marginBottom:12,fontSize:14}}>♻️ Garbage Collection</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
+          {metrics.gc.map((g,i)=><div key={i} style={{background:C.bg,border:"1px solid "+C.border,borderRadius:4,padding:"10px 12px"}}>
+            <div style={{fontWeight:700,fontSize:12,color:C.text,marginBottom:6}}>{g.name}</div>
+            <div style={{display:"flex",gap:16,fontSize:11}}>
+              <span><span style={{color:C.muted}}>Count: </span><span style={{color:C.purple,fontWeight:700}}>{g.count}</span></span>
+              <span><span style={{color:C.muted}}>Time: </span><span style={{color:g.timeMs>1000?C.danger:C.success,fontWeight:700}}>{g.timeMs}ms</span></span>
+            </div>
+          </div>)}
+        </div>
+      </Card>}
+
+      {/* Heap history sparkline */}
+      {history.length>1&&<Card color={C.blue} C={C}>
+        <div style={{fontWeight:700,marginBottom:10,fontSize:14,display:"flex",justifyContent:"space-between"}}>
+          <span>📈 Heap % History (last {history.length} polls)</span>
+          <span style={{fontSize:11,color:C.muted}}>Latest: {history[0]?.heapPct}%</span>
+        </div>
+        <svg width="100%" height="90" style={{display:"block",overflow:"visible"}}>
+          <defs><linearGradient id="hg" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor={C.blue} stopOpacity="0.3"/><stop offset="100%" stopColor={C.blue} stopOpacity="0.01"/></linearGradient></defs>
+          {history.length>1&&<>
+            <polyline points={sparkPts} fill="none" stroke={C.blue} strokeWidth="2" strokeLinejoin="round"/>
+            <polygon points={sparkPts+" "+((history.length-1)*28)+",80 0,80"} fill="url(#hg)"/>
+            {history.slice().reverse().map((h,i)=><circle key={i} cx={i*28} cy={80-(h.heapPct||0)*0.75} r="3" fill={heapColor}/>)}
+          </>}
+          {[0,25,50,75,100].map(v=><line key={v} x1="0" y1={80-v*0.75} x2="100%" y2={80-v*0.75} stroke={C.border} strokeWidth="1" strokeDasharray="4"/>)}
+          {[0,25,50,75,100].map(v=><text key={v} x="2" y={80-v*0.75-2} fontSize="8" fill={C.muted}>{v}%</text>)}
+        </svg>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",marginTop:8}}>
+          {history.slice(0,8).map((h,i)=><div key={i} style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{h.time}: <span style={{color:h.heapPct>85?C.danger:h.heapPct>70?C.warning:C.success,fontWeight:700}}>{h.heapPct}%</span></div>)}
+        </div>
+      </Card>}
+
+      {/* API Endpoints */}
+      <Card color={C.teal} style={{marginTop:14}} C={C}>
+        <div style={{fontWeight:700,marginBottom:12,fontSize:14}}>🔌 Live API Endpoints</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
+          {[{url:`http://localhost:${port}/pdc/`,label:"Dashboard UI",status:"UP"},{url:`http://localhost:${port}/pdc/health`,label:"Health JSON",status:"UP"},{url:`http://localhost:${port}/pdc/api/metrics`,label:"JVM Metrics",status:"UP"},{url:`http://localhost:${port}/pdc/api/status`,label:"Status",status:"UP"}].map(e=><a key={e.url} href={e.url} target="_blank" rel="noreferrer" style={{textDecoration:"none",display:"block",background:C.bg,border:"1px solid "+C.border,borderRadius:4,padding:"10px 12px"}}>
+            <div style={{fontWeight:700,fontSize:12,color:C.text,marginBottom:3}}>{e.label}</div>
+            <div style={{fontSize:10,color:C.teal,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.url}</div>
+            <div style={{marginTop:5}}><Badge text={e.status} color={C.success}/></div>
+          </a>)}
+        </div>
+      </Card>
+    </>}
+  </div>;
+}
+
+// ─── Pipeline Tab ──────────────────────────────────────────────────────────
+function PipelineTab({C,deployments,wls,user,addToast,record,setDeployments,realMode,loadRealDeployments}) {
+  const [pipelines,setPipelines]=useState([
+    {id:"pl1",name:"pdc-app",stage:"PRODUCTION",lastBuild:"#47",status:"SUCCESS",branch:"main",commit:"a3f8c12",duration:"2m 34s",triggeredBy:"Auto",time:"10 min ago",steps:[{n:"Build",s:"SUCCESS"},{n:"Unit Tests",s:"SUCCESS"},{n:"Integration",s:"SUCCESS"},{n:"Deploy UAT",s:"SUCCESS"},{n:"Smoke Test",s:"SUCCESS"},{n:"Deploy PROD",s:"SUCCESS"}]},
+    {id:"pl2",name:"gsc-portal",stage:"UAT",lastBuild:"#23",status:"IN_PROGRESS",branch:"release/2.1",commit:"b7d4e91",duration:"1m 20s",triggeredBy:"Rajesh Kumar",time:"2 min ago",steps:[{n:"Build",s:"SUCCESS"},{n:"Unit Tests",s:"SUCCESS"},{n:"Integration",s:"IN_PROGRESS"},{n:"Deploy UAT",s:"PENDING"},{n:"Smoke Test",s:"PENDING"},{n:"Deploy PROD",s:"PENDING"}]},
+    {id:"pl3",name:"batch-processor",stage:"FAILED",lastBuild:"#15",status:"FAILED",branch:"fix/timeout",commit:"c1a5f33",duration:"45s",triggeredBy:"Priya Sharma",time:"1 hr ago",steps:[{n:"Build",s:"SUCCESS"},{n:"Unit Tests",s:"FAILED"},{n:"Integration",s:"SKIPPED"},{n:"Deploy UAT",s:"SKIPPED"},{n:"Smoke Test",s:"SKIPPED"},{n:"Deploy PROD",s:"SKIPPED"}]},
+  ]);
+  const [history]=useState([
+    {build:"#47",app:"pdc-app",status:"SUCCESS",env:"PROD",time:"10 min ago",by:"Auto CI",commit:"a3f8c12"},
+    {build:"#46",app:"pdc-app",status:"SUCCESS",env:"PROD",time:"3 hr ago",by:"Lakhshit",commit:"9b2d4a1"},
+    {build:"#23",app:"gsc-portal",status:"IN_PROGRESS",env:"UAT",time:"2 min ago",by:"Rajesh Kumar",commit:"b7d4e91"},
+    {build:"#22",app:"gsc-portal",status:"SUCCESS",env:"UAT",time:"2 days ago",by:"Priya Sharma",commit:"f4e8c00"},
+    {build:"#15",app:"batch-processor",status:"FAILED",env:"UAT",time:"1 hr ago",by:"Priya Sharma",commit:"c1a5f33"},
+    {build:"#14",app:"batch-processor",status:"SUCCESS",env:"PROD",time:"3 days ago",by:"Auto CI",commit:"d9f1b22"},
+  ]);
+
+  const sc={SUCCESS:C.success,FAILED:C.danger,IN_PROGRESS:C.blue,PENDING:C.dim,SKIPPED:C.dim};
+  const si={SUCCESS:"✅",FAILED:"❌",IN_PROGRESS:"⟳",PENDING:"○",SKIPPED:"—"};
+
+  const triggerRollback=(pl)=>{
+    if(!window.confirm("Rollback "+pl.name+" to previous build?")) return;
+    addToast("Rollback initiated",pl.name+" rolling back",C.warning,"⏪");
+    record("DEPLOY",{description:user.name+" triggered rollback for "+pl.name});
+    push(ref(db,"auditLogs"),{action:"ROLLBACK: "+pl.name,user:user.name,time:nowStr()});
+  };
+
+  const triggerPipeline=(pl)=>{
+    setPipelines(p=>p.map(x=>x.id===pl.id?{...x,status:"IN_PROGRESS",steps:x.steps.map((s,i)=>({...s,s:i===0?"IN_PROGRESS":"PENDING"}))}:x));
+    addToast("Pipeline triggered",pl.name+" building",C.blue,"🔄");
+    record("DEPLOY",{description:user.name+" triggered pipeline for "+pl.name});
+    let step=0;
+    const iv=setInterval(()=>{
+      step++;
+      setPipelines(p=>p.map(x=>x.id===pl.id?{...x,steps:x.steps.map((s,i)=>({...s,s:i<step?"SUCCESS":i===step?"IN_PROGRESS":"PENDING"}))}:x));
+      if(step>=pl.steps.length-1) {
+        clearInterval(iv);
+        setTimeout(()=>setPipelines(p=>p.map(x=>x.id===pl.id?{...x,status:"SUCCESS",time:"just now",steps:x.steps.map(s=>({...s,s:"SUCCESS"}))}:x)),800);
+        addToast("Pipeline complete!",pl.name+" deployed",C.success,"✅");
+      }
+    },1200);
+  };
+
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:20,flexWrap:"wrap",gap:10}}>
+      <div>
+        <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>🔄 Deployment Pipeline</h2>
+        <p style={{color:C.muted,margin:0,fontSize:12}}>CI/CD pipelines · Build status · Version history · Rollback</p>
+      </div>
+    </div>
+
+    {/* KPIs */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
+      {[["Pipelines",pipelines.length,C.blue],["Passing",pipelines.filter(p=>p.status==="SUCCESS").length,C.success],["Failed",pipelines.filter(p=>p.status==="FAILED").length,C.danger],["Running",pipelines.filter(p=>p.status==="IN_PROGRESS").length,C.blue]].map(([l,v,c])=><Card key={l} color={c} style={{padding:"13px 14px"}} C={C}><div style={{fontFamily:"monospace",fontSize:22,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:4,textTransform:"uppercase"}}>{l}</div></Card>)}
+    </div>
+
+    {/* Pipeline Cards */}
+    <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:20}}>
+      {pipelines.map(pl=><Card key={pl.id} color={sc[pl.status]||C.muted} style={{padding:"14px 18px"}} C={C}>
+        <div style={{display:"flex",gap:14,alignItems:"flex-start",flexWrap:"wrap",marginBottom:12}}>
+          <div style={{flex:1}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:4}}>
+              <span style={{fontFamily:"monospace",fontWeight:800,fontSize:16,color:C.text}}>{pl.name}</span>
+              <Badge text={pl.status} color={sc[pl.status]||C.muted}/>
+              <Badge text={pl.stage} color={pl.stage==="PRODUCTION"?C.red:pl.stage==="UAT"?C.blue:C.orange}/>
+            </div>
+            <div style={{display:"flex",gap:12,fontSize:11,color:C.muted,flexWrap:"wrap"}}>
+              <span>🔖 Build {pl.lastBuild}</span>
+              <span>🌿 {pl.branch}</span>
+              <span>💬 {pl.commit}</span>
+              <span>⏱ {pl.duration}</span>
+              <span>👤 {pl.triggeredBy}</span>
+              <span>🕐 {pl.time}</span>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,flexShrink:0}}>
+            <button onClick={()=>triggerPipeline(pl)} style={{padding:"6px 14px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer"}}>▶ Run</button>
+            <button onClick={()=>triggerRollback(pl)} style={{padding:"6px 14px",background:C.warning+"20",border:"1px solid "+C.warning+"44",borderRadius:4,color:C.warning,fontSize:12,fontWeight:700,cursor:"pointer"}}>⏪ Rollback</button>
+          </div>
+        </div>
+        {/* Pipeline steps */}
+        <div style={{display:"flex",gap:0,alignItems:"center",overflowX:"auto"}}>
+          {pl.steps.map((step,i)=><div key={i} style={{display:"flex",alignItems:"center",flexShrink:0}}>
+            <div style={{textAlign:"center",padding:"6px 10px",background:step.s==="IN_PROGRESS"?C.blue+"15":step.s==="SUCCESS"?C.success+"12":step.s==="FAILED"?C.danger+"12":C.bg,border:"1px solid "+(step.s==="IN_PROGRESS"?C.blue:step.s==="SUCCESS"?C.success:step.s==="FAILED"?C.danger:C.border),borderRadius:4,minWidth:90}}>
+              <div style={{fontSize:14,marginBottom:3,animation:step.s==="IN_PROGRESS"?"spin 1.2s linear infinite":"none",display:"inline-block"}}>{si[step.s]||"?"}</div>
+              <div style={{fontSize:10,fontWeight:600,color:sc[step.s]||C.muted}}>{step.n}</div>
+            </div>
+            {i<pl.steps.length-1&&<div style={{width:20,height:2,background:step.s==="SUCCESS"?C.success:C.border,flexShrink:0}}/>}
+          </div>)}
+        </div>
+      </Card>)}
+    </div>
+
+    {/* Build History */}
+    <Card color={C.blue} C={C}>
+      <div style={{fontWeight:700,marginBottom:12,fontSize:14}}>📜 Build History</div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr style={{borderBottom:"2px solid "+C.red}}>{["Build","Application","Status","Environment","Triggered By","Commit","Time"].map(h=><th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:0.7,whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+          <tbody>{history.map((h,i)=><tr key={i} style={{borderBottom:"1px solid "+C.border}}>
+            <td style={{padding:"9px 12px",fontFamily:"monospace",fontWeight:700,color:C.text,fontSize:12}}>{h.build}</td>
+            <td style={{padding:"9px 12px",fontWeight:600,fontSize:12,color:C.text}}>{h.app}</td>
+            <td style={{padding:"9px 12px"}}><Badge text={h.status} color={sc[h.status]||C.muted}/></td>
+            <td style={{padding:"9px 12px"}}><Badge text={h.env} color={h.env==="PROD"?C.red:C.blue}/></td>
+            <td style={{padding:"9px 12px",fontSize:12,color:C.muted}}>{h.by}</td>
+            <td style={{padding:"9px 12px",fontFamily:"monospace",fontSize:11,color:C.cyan}}>{h.commit}</td>
+            <td style={{padding:"9px 12px",fontSize:11,color:C.muted}}>{h.time}</td>
+          </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  </div>;
+}
+
+// ─── WLS Setup Tab ─────────────────────────────────────────────────────────
+function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
+  const [proxyUrl,setProxyUrl]=useState(typeof process!=="undefined"&&process.env?.REACT_APP_WLS_PROXY_URL||"http://localhost:3001");
+  const [testing,setTesting]=useState(false);
+  const [testResult,setTestResult]=useState(null);
+  const [wlsHost,setWlsHost]=useState("localhost");
+  const [wlsPort,setWlsPort]=useState("7001");
+  const [wlsUser,setWlsUser]=useState("weblogic");
+  const [wlsPass,setWlsPass]=useState("WLS@GSC2025!");
+  const [step,setStep]=useState(0);
+
+  const testConnection=async()=>{
+    setTesting(true); setTestResult(null);
+    try {
+      const r=await fetch(proxyUrl+"/health",{signal:AbortSignal.timeout(5000)});
+      const d=await r.json();
+      setTestResult({ok:true,msg:"Proxy connected! WLS: "+d.wls,data:d});
+      addToast("Proxy connected!",d.wls,C.success,"✅");
+      record("SETTINGS",{description:user.name+" tested proxy connection"});
+    } catch(e) {
+      setTestResult({ok:false,msg:e.message.includes("abort")?"Timeout — proxy not reachable at "+proxyUrl:e.message});
+      addToast("Connection failed",e.message.slice(0,60),C.danger,"❌");
+    }
+    setTesting(false);
+  };
+
+  const steps=[
+    {icon:"🐋",title:"Start Docker WLS Environment",cmd:"cd wls-package/scripts\n./gsc-wls.sh start-env",desc:"Pulls Oracle WLS 14.1.1 image and starts 3 managed servers + proxy. Requires Docker Desktop and Oracle Container Registry login."},
+    {icon:"🔌",title:"Start Proxy Server (standalone)",cmd:"cd wls-package/proxy\nnpm install\nWLS_ADMIN_URL=http://localhost:7001 \\\nWLS_USERNAME=weblogic \\\nWLS_PASSWORD=WLS@GSC2025! \\\nALLOWED_ORIGINS=https://lakhshit.in \\\nnode server.js",desc:"If WLS is already running elsewhere (OCI VM), just run the proxy to bridge lakhshit.in → WLS REST API."},
+    {icon:"🌐",title:"Set Proxy URL in Vercel",cmd:"REACT_APP_WLS_PROXY_URL=http://YOUR_SERVER_IP:3001",desc:"In Vercel dashboard → Settings → Environment Variables. If using Docker locally, use your machine's IP or ngrok tunnel."},
+    {icon:"📦",title:"Build and Deploy PDC App",cmd:"cd wls-package/pdc-app\nmvn clean package\n\n# Then deploy\ncd ../scripts\n./gsc-wls.sh deploy-pdc prod",desc:"Builds the Java EE PDC WAR and deploys it to WLS-PROD-01 and WLS-PROD-02. Accessible at http://localhost:8001/pdc/"},
+    {icon:"✅",title:"Verify Integration",cmd:"# Test proxy\ncurl http://localhost:3001/health\n\n# Test WLS API\ncurl http://localhost:3001/api/servers\n\n# Test PDC app\ncurl http://localhost:8001/pdc/health",desc:"If all three return JSON responses, your lakhshit.in platform is fully connected to real WebLogic."},
+  ];
+
+  return <div>
+    <div style={{marginBottom:20}}>
+      <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>⚙ WLS Integration Setup</h2>
+      <p style={{color:C.muted,margin:0,fontSize:12}}>Connect lakhshit.in to a real Oracle WebLogic environment</p>
+    </div>
+
+    {/* Current Status */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
+      {[{l:"Proxy Status",v:proxyStatus==="connected"?"CONNECTED":"DISCONNECTED",c:proxyStatus==="connected"?C.success:C.danger,i:proxyStatus==="connected"?"🟢":"🔴"},{l:"Mode",v:realMode?"REAL WLS":"SIMULATED",c:realMode?C.success:C.warning,i:realMode?"⚡":"🎭"},{l:"Platform",v:"lakhshit.in",c:C.blue,i:"🌐"}].map(s=><Card key={s.l} color={s.c} style={{padding:"14px 16px"}} C={C}>
+        <div style={{fontFamily:"monospace",fontWeight:700,fontSize:16,color:s.c}}>{s.i} {s.v}</div>
+        <div style={{fontSize:11,color:C.muted,marginTop:5,textTransform:"uppercase"}}>{s.l}</div>
+      </Card>)}
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+      {/* Connection Test */}
+      <Card color={C.blue} C={C}>
+        <div style={{fontWeight:700,marginBottom:14,fontSize:14}}>🔗 Test Connection</div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Proxy URL</div>
+          <input value={proxyUrl} onChange={e=>setProxyUrl(e.target.value)} style={{width:"100%",padding:"9px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:13,outline:"none",fontFamily:"monospace",boxSizing:"border-box"}}/>
+        </div>
+        <button onClick={testConnection} disabled={testing} style={{width:"100%",padding:"10px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontWeight:700,fontSize:13,cursor:testing?"not-allowed":"pointer",opacity:testing?.6:1,fontFamily:"inherit"}}>
+          {testing?"⟳ Testing...":"🔌 Test Connection"}
+        </button>
+        {testResult&&<div style={{marginTop:12,padding:"10px 12px",background:(testResult.ok?C.success:C.danger)+"15",border:"1px solid "+(testResult.ok?C.success:C.danger)+"33",borderRadius:4,fontSize:12,color:testResult.ok?C.success:C.danger,fontWeight:600}}>
+          {testResult.ok?"✅":"❌"} {testResult.msg}
+          {testResult.ok&&testResult.data&&<div style={{marginTop:6,fontSize:11,color:C.muted,fontFamily:"monospace"}}>Time: {testResult.data.time}</div>}
+        </div>}
+        <div style={{marginTop:14,padding:"10px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:6}}>Once connected, the platform will:</div>
+          {["Pull live server states every 5s","Execute real start/stop/restart on WLS","Deploy actual WAR files to managed servers","Show real JVM heap and thread metrics"].map((t,i)=><div key={i} style={{fontSize:11,color:C.text,padding:"3px 0",display:"flex",gap:6}}><span style={{color:C.success}}>✓</span>{t}</div>)}
+        </div>
+      </Card>
+
+      {/* WLS Config */}
+      <Card color={C.orange} C={C}>
+        <div style={{fontWeight:700,marginBottom:14,fontSize:14}}>🔑 WLS Admin Credentials</div>
+        {[["Admin Host",wlsHost,setWlsHost,"text","localhost"],["Admin Port",wlsPort,setWlsPort,"text","7001"],["Username",wlsUser,setWlsUser,"text","weblogic"],["Password",wlsPass,setWlsPass,"password","•••••"]].map(([l,v,set,t,ph])=><div key={l} style={{marginBottom:10}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:5,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
+          <input type={t} value={v} onChange={e=>set(e.target.value)} placeholder={ph} style={{width:"100%",padding:"8px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>)}
+        <div style={{marginTop:6,padding:"8px 12px",background:C.orange+"12",border:"1px solid "+C.orange+"33",borderRadius:4,fontSize:11,color:C.orange}}>
+          ⚠ These are used by the proxy server. Set them in the proxy's environment variables, not here.
+        </div>
+      </Card>
+    </div>
+
+    {/* Step-by-step guide */}
+    <Card color={C.purple} C={C}>
+      <div style={{fontWeight:700,marginBottom:16,fontSize:14}}>📋 Setup Guide ({step+1}/{steps.length})</div>
+      <div style={{display:"flex",gap:0,marginBottom:20,overflowX:"auto"}}>
+        {steps.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",flexShrink:0}}>
+          <button onClick={()=>setStep(i)} style={{padding:"7px 12px",background:i===step?C.red:i<step?C.success+"20":"transparent",border:"1px solid "+(i===step?C.red:i<step?C.success:C.border),borderRadius:4,cursor:"pointer",fontSize:11,fontWeight:700,color:i===step?"#fff":i<step?C.success:C.muted,whiteSpace:"nowrap"}}>{i<step?"✓ ":""}{s.title.split(" ").slice(0,3).join(" ")}</button>
+          {i<steps.length-1&&<div style={{width:16,height:2,background:i<step?C.success:C.border,flexShrink:0}}/>}
+        </div>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <div style={{display:"flex",flexDirection:"column",gap:9}}>
-          {filtered.map(i=>(
-            <GlowCard key={i.id} color={i.severity==="CRITICAL"?C.danger:C.warning} onClick={()=>troubleshoot(i)} style={{cursor:"pointer"}} C={C}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:7}}>
-                <div><div style={{display:"flex",gap:7,alignItems:"center",marginBottom:3,flexWrap:"wrap"}}><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:i.severity==="CRITICAL"?C.danger:C.warning}}>{i.server}</span><Badge text={i.severity} color={i.severity==="CRITICAL"?C.danger:C.warning}/><Badge text={i.type} color={C.blue}/></div><p style={{color:C.muted,fontSize:12,margin:0,lineHeight:1.4}}>{i.description}</p></div>
-                <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>{i.status==="HEALING"&&<span style={{animation:"spin 1s linear infinite",display:"inline-block",fontSize:13}}>🔄</span>}<Badge text={i.status} color={i.status==="RESOLVED"?C.green:i.status==="HEALING"?C.cyan:C.warning}/></div>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:5}}>
-                <div style={{display:"flex",gap:7}}><span style={{fontSize:10,color:C.muted}}>🕐 {i.detected}</span>{i.autoHeal&&<Badge text="AUTO-HEAL" color={C.cyan}/>}</div>
-                {i.status!=="RESOLVED"&&<button onClick={e=>{e.stopPropagation();setIssues(p=>p.map(x=>x.id===i.id?{...x,status:"RESOLVED"}:x));}} style={{padding:"3px 9px",background:`${C.green}15`,border:`1px solid ${C.green}33`,borderRadius:7,color:C.green,fontSize:10,cursor:"pointer",fontWeight:700}}>✓ Resolve</button>}
-              </div>
-            </GlowCard>
-          ))}
-          {filtered.length===0&&<GlowCard color={C.green} style={{textAlign:"center",padding:28}} C={C}><div style={{color:C.muted}}>✅ No issues</div></GlowCard>}
+        <div>
+          <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:28}}>{steps[step].icon}</span>
+            <div><div style={{fontWeight:800,fontSize:16,color:C.text}}>{steps[step].title}</div></div>
+          </div>
+          <p style={{color:C.muted,fontSize:13,lineHeight:1.6,marginBottom:14}}>{steps[step].desc}</p>
+          <div style={{display:"flex",gap:8}}>
+            {step>0&&<button onClick={()=>setStep(s=>s-1)} style={{padding:"7px 16px",background:"transparent",border:"1px solid "+C.border,borderRadius:4,color:C.muted,fontSize:12,cursor:"pointer",fontWeight:600}}>← Back</button>}
+            {step<steps.length-1&&<button onClick={()=>setStep(s=>s+1)} style={{padding:"7px 16px",background:C.purple,border:"none",borderRadius:4,color:"#fff",fontSize:12,cursor:"pointer",fontWeight:700}}>Next →</button>}
+            {step===steps.length-1&&<button onClick={testConnection} style={{padding:"7px 16px",background:C.success,border:"none",borderRadius:4,color:"#fff",fontSize:12,cursor:"pointer",fontWeight:700}}>✅ Test Connection</button>}
+          </div>
         </div>
-        <GlowCard color={C.green} style={{height:"fit-content",position:"sticky",top:80}} C={C}>
-          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:10,fontSize:13}}>🔍 Analysis Console</div>
-          <Terminal lines={termLines} height={380} C={C}/>
-        </GlowCard>
+        <div>
+          <div style={{fontSize:11,color:C.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Command</div>
+          <pre style={{background:"#000",borderRadius:4,padding:14,fontSize:11,color:"#4ade80",lineHeight:1.7,border:"1px solid "+C.success+"33",overflowX:"auto",margin:0,fontFamily:"'JetBrains Mono',monospace"}}>{steps[step].cmd}</pre>
+          <button onClick={()=>{navigator.clipboard?.writeText(steps[step].cmd);addToast("Copied!","Command copied to clipboard",C.success,"📋");}} style={{marginTop:8,padding:"5px 12px",background:"transparent",border:"1px solid "+C.border,borderRadius:3,color:C.muted,fontSize:11,cursor:"pointer",fontWeight:600}}>📋 Copy</button>
+        </div>
       </div>
-    </div>
-  );
+    </Card>
+
+    {/* Quick reference */}
+    <Card color={C.teal} style={{marginTop:14}} C={C}>
+      <div style={{fontWeight:700,marginBottom:12,fontSize:14}}>🔑 Quick Reference</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8}}>
+        {[{l:"WLS Admin Console",v:"http://localhost:7001/console",c:C.red},{l:"WLS-PROD-01",v:"http://localhost:8001",c:C.blue},{l:"WLS-PROD-02",v:"http://localhost:8002",c:C.blue},{l:"WLS-UAT-01",v:"http://localhost:8003",c:C.purple},{l:"Proxy API",v:"http://localhost:3001",c:C.teal},{l:"PDC App",v:"http://localhost:8001/pdc/",c:C.success}].map(item=><div key={item.l} style={{background:C.bg,border:"1px solid "+C.border,borderRadius:4,padding:"10px 12px"}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:3}}>{item.l}</div>
+          <a href={item.v} target="_blank" rel="noreferrer" style={{fontFamily:"monospace",fontSize:11,color:item.c,textDecoration:"none",fontWeight:700}}>{item.v} ↗</a>
+        </div>)}
+      </div>
+      <div style={{marginTop:12,padding:"10px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,fontSize:11,color:C.muted}}>
+        Credentials: <strong style={{color:C.text}}>weblogic</strong> / <strong style={{color:C.text}}>WLS@GSC2025!</strong> · Domain: <strong style={{color:C.text}}>GSC_Domain</strong>
+      </div>
+    </Card>
+  </div>;
 }
 
-function AutoHealTab({C,issues,user}){
-  const [policies,setPolicies]=useState([
-    {id:1,name:"JVM Heap Critical",trigger:"JVM > 95%",action:"Force GC + Heap Dump",enabled:true,executions:12},{id:2,name:"Thread Starvation",trigger:"Threads > 90%",action:"Kill stuck threads",enabled:true,executions:3},{id:3,name:"Memory Leak",trigger:"Memory > 5%/hr",action:"Heap dump + Restart",enabled:true,executions:1},{id:4,name:"CPU Spike",trigger:"CPU > 90% for 5min",action:"Thread dump + Alert",enabled:false,executions:0},{id:5,name:"GC Overhead",trigger:"GC > 100ms",action:"Tune GC params",enabled:true,executions:7},{id:6,name:"Datasource Recovery",trigger:"DS failures > 5",action:"Reconnect pool",enabled:true,executions:2},{id:7,name:"Compute High CPU",trigger:"VM CPU > 90%",action:"Scale out + Alert",enabled:true,executions:0},{id:8,name:"DB Connection Leak",trigger:"Connections > 90%",action:"Kill idle connections",enabled:true,executions:4},
-  ]);
-  const healing=issues.filter(i=>i.status==="HEALING");
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>🔄 Auto-Healing Engine</h2>
-      <p style={{color:C.muted,marginBottom:14,fontSize:12}}>Automated remediation for OCI + WebLogic</p>
-      {healing.length>0&&<GlowCard color={C.cyan} style={{marginBottom:14}} C={C}><div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:C.text}}><span style={{animation:"spin 1s linear infinite",display:"inline-block",fontSize:16}}>🔄</span>Auto-Healing In Progress ({healing.length})</div>{healing.map(i=><div key={i.id} style={{background:C.card2,borderRadius:9,padding:"10px 12px",marginBottom:6,border:`1px solid ${C.cyan}33`}}><div style={{fontWeight:700,color:C.cyan,fontFamily:"monospace",fontSize:11}}>{i.server} — {i.type}</div><div style={{height:4,background:C.dim,borderRadius:2,marginTop:6,overflow:"hidden"}}><div style={{height:"100%",width:"65%",background:G.teal,borderRadius:2}}/></div></div>)}</GlowCard>}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
-        {[["Active",policies.filter(p=>p.enabled).length,C.green],["Executions",policies.reduce((a,p)=>a+p.executions,0),C.blue],["Healing",healing.length,C.cyan],["Resolved",issues.filter(i=>i.status==="RESOLVED").length,C.green]].map(([l,v,c])=>(
-          <GlowCard key={l} color={c} style={{padding:"12px 14px"}} C={C}><div style={{fontFamily:"monospace",fontSize:22,fontWeight:700,color:c}}>{v}</div><div style={{fontSize:10,color:C.muted,marginTop:3,letterSpacing:1}}>{l.toUpperCase()}</div></GlowCard>
-        ))}
-      </div>
-      <GlowCard color={C.purple} C={C}>
-        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,marginBottom:12,fontSize:14}}>🤖 Healing Policies</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-          {policies.map(p=>(
-            <div key={p.id} style={{background:C.card2,borderRadius:10,padding:"11px 12px",border:`1px solid ${p.enabled?C.purple+"44":C.border}`,display:"flex",gap:9,alignItems:"center"}}>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",gap:7,alignItems:"center",marginBottom:3}}><span style={{fontWeight:700,fontSize:12,color:C.text}}>{p.name}</span>{p.enabled&&<Badge text="ON" color={C.green} dot/>}</div>
-                <div style={{fontSize:10,color:C.warning,marginBottom:2}}>⚡ {p.trigger}</div>
-                <div style={{fontSize:10,color:C.cyan,marginBottom:3}}>🔧 {p.action}</div>
-                <div style={{fontSize:10,color:C.muted}}>{p.executions} runs</div>
-              </div>
-              {(user.role==="admin"||user.role==="operator")&&<div onClick={()=>setPolicies(prev=>prev.map(x=>x.id===p.id?{...x,enabled:!x.enabled}:x))} style={{width:38,height:20,borderRadius:10,background:p.enabled?C.green:C.dim,cursor:"pointer",position:"relative",transition:"all .3s",flexShrink:0}}><div style={{position:"absolute",top:2,left:p.enabled?19:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .3s"}}/></div>}
-            </div>
-          ))}
-        </div>
-      </GlowCard>
-    </div>
-  );
-}
 
-function AuditTab({C,auditList}){
-  return (
-    <div>
-      <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.text,marginBottom:4}}>📋 Audit Log</h2>
-      <p style={{color:C.muted,marginBottom:18,fontSize:12}}>Immutable record · {auditList.length} entries</p>
-      {auditList.length===0?<GlowCard color={C.blue} style={{textAlign:"center",padding:40}} C={C}><div style={{color:C.muted}}>No records yet.</div></GlowCard>
-        :<div style={{display:"flex",flexDirection:"column",gap:6}}>
-          {[...auditList].reverse().map((a,i)=>(
-            <GlowCard key={a.id} color={a.action.includes("APPROVED")?C.green:a.action.includes("REJECTED")?C.danger:C.blue} style={{padding:"10px 14px"}} C={C}>
-              <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                <div style={{width:28,height:28,borderRadius:"50%",background:a.action.includes("APPROVED")?`${C.green}20`:a.action.includes("REJECTED")?`${C.danger}20`:`${C.blue}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0}}>{a.action.includes("APPROVED")?"✅":a.action.includes("REJECTED")?"❌":"⚡"}</div>
-                <div style={{flex:1}}><div style={{fontWeight:700,fontSize:12,fontFamily:"monospace",color:C.text}}>{a.action}</div><div style={{color:C.muted,fontSize:10,marginTop:2}}>by {a.user} · {a.time}</div></div>
-                <div style={{fontFamily:"monospace",fontSize:10,color:C.dim}}>#{auditList.length-i}</div>
-              </div>
-            </GlowCard>
-          ))}
-        </div>
-      }
+function ChatbotPanel({onClose,C,wls,deployments,incidentList,record,user,realMode}) {
+  const [messages,setMessages]=useState([{role:"assistant",content:"👋 Hi! I'm your OCI Assistant.\n\n"+(realMode?"🟢 Connected to real WebLogic!":"⚠ Running in simulation mode.")+"\n\nAsk me about servers, deployments, incidents, or infrastructure!"}]);
+  const [input,setInput]=useState("");
+  const [typing,setTyping]=useState(false);
+  const msgRef=useRef(null);
+  useEffect(()=>{ if(msgRef.current) msgRef.current.scrollTop=msgRef.current.scrollHeight; },[messages]);
+
+  const buildAnswer=(q)=>{
+    const ql=q.toLowerCase();
+    const critical=wls.filter(s=>s.status==="CRITICAL");
+    const warning=wls.filter(s=>s.status==="WARNING");
+    const avgJvm=Math.round(wls.reduce((a,s)=>a+(s.jvmHeap||0),0)/wls.length);
+    const openInc=incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status));
+    const activeDeploys=deployments.filter(d=>d.state==="ACTIVE");
+
+    if(ql.includes("deploy")&&(ql.includes("how")||ql.includes("what")||ql.includes("list"))) {
+      let m="🚀 Active Deployments ("+activeDeploys.length+"):\n\n";
+      activeDeploys.forEach(d=>m+="• "+d.name+" v"+(d.version||"?")+"\n  Targets: "+(d.targets||[]).join(", ")+"\n");
+      if(!realMode) m+="\n⚠ Simulation mode — connect proxy for real data.";
+      return m;
+    }
+    if(ql.includes("status")||ql.includes("all server")||ql.includes("overview")) {
+      let m="📊 WLS Status ("+wls.length+" servers):\n\n";
+      wls.forEach(s=>m+="• "+s.name+" — "+s.status+" | CPU:"+s.cpu+"% | JVM:"+s.jvmHeap+"%\n");
+      m+="\n⚡ "+activeDeploys.length+" apps active · 🚨 "+openInc.length+" open incidents";
+      return m;
+    }
+    if(ql.includes("critical")||ql.includes("problem")||ql.includes("attention")) {
+      if(!critical.length&&!warning.length) return "✅ All servers healthy! No critical or warning states.";
+      let m="🚨 Attention Required:\n\n";
+      critical.forEach(s=>m+="🔴 "+s.name+"\n  JVM:"+s.jvmHeap+"% CPU:"+s.cpu+"%\n  → Restart immediately\n\n");
+      warning.forEach(s=>m+="⚠ "+s.name+"\n  JVM:"+s.jvmHeap+"% CPU:"+s.cpu+"%\n  → Monitor closely\n\n");
+      return m;
+    }
+    if(ql.includes("jvm")||ql.includes("heap")) {
+      const h=wls.filter(s=>s.jvmHeap>80).sort((a,b)=>b.jvmHeap-a.jvmHeap);
+      if(!h.length) return "✅ All JVM Heaps healthy (avg: "+avgJvm+"%)";
+      let m="💾 JVM Alert (avg: "+avgJvm+"%):\n\n";
+      h.forEach(s=>m+="• "+s.name+": "+s.jvmHeap+"%\n");
+      m+="\nFix: Increase -Xmx to 4GB, review session timeout";
+      return m;
+    }
+    if(ql.includes("incident")) {
+      if(!openInc.length) return "✅ No open incidents!";
+      let m="🚨 Open Incidents ("+openInc.length+"):\n\n";
+      openInc.forEach(i=>m+="• ["+i.priority+"] "+(i.title||"Untitled")+" — "+i.status+"\n");
+      return m;
+    }
+    if(ql.includes("proxy")||ql.includes("real")||ql.includes("connect")) return realMode?"🟢 Proxy is CONNECTED — you're using real WLS data from:\n"+PROXY_URL:"⚠ Proxy DISCONNECTED — simulation mode.\n\nTo connect:\n1. Start proxy: node server.js\n2. Set REACT_APP_WLS_PROXY_URL env\n3. Reload the page";
+    if(ql.includes("recommend")||ql.includes("fix")||ql.includes("suggest")) {
+      let m="💡 Recommendations:\n\n";let n=1;
+      critical.forEach(s=>m+=n+++". 🔴 Restart "+s.name+" NOW\n");
+      warning.forEach(s=>m+=n+++". ⚠ Monitor "+s.name+"\n");
+      if(avgJvm>75) m+=n+++". 💾 Increase JVM heap → -Xmx4g\n";
+      m+=n+++". 📦 Check pending patches";
+      return m;
+    }
+    if(ql.includes("help")||ql.includes("what")) return "🤖 I can help with:\n• Server status & health\n• JVM/heap analysis\n• Deployment list\n• Open incidents\n• Proxy connection\n• Recommendations\n\nJust ask!";
+    return "🤖 Try: 'Server status', 'Critical servers', 'Deployment list', 'Open incidents', 'Is proxy connected?'";
+  };
+
+  const send=()=>{
+    if(!input.trim()||typing) return;
+    const q=input.trim();
+    setMessages(p=>[...p,{role:"user",content:q}]);
+    setInput(""); setTyping(true);
+    setTimeout(()=>{ setMessages(p=>[...p,{role:"assistant",content:buildAnswer(q)}]); setTyping(false); },400+Math.random()*300);
+  };
+
+  return <div style={{position:"fixed",bottom:90,right:24,zIndex:999,width:380,height:520,background:C.card,border:"1px solid "+C.red+"44",borderRadius:4,boxShadow:"0 8px 32px rgba(0,0,0,.4)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    <div style={{background:C.red,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>🤖</span><div><div style={{fontWeight:700,fontSize:14,color:"#fff"}}>OCI Assistant</div><div style={{fontSize:10,color:"rgba(255,255,255,.7)"}}>{realMode?"Live WLS data":"Simulation mode"}</div></div></div>
+      <button onClick={onClose} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",color:"#fff",fontSize:14}}>✕</button>
     </div>
-  );
+    <div ref={msgRef} style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
+      {messages.map((m,i)=><div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
+        <div style={{maxWidth:"90%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.red:C.card2,color:m.role==="user"?"#fff":C.text,fontSize:12,lineHeight:1.6,border:m.role==="user"?"none":"1px solid "+C.border,whiteSpace:"pre-line"}}>{m.content}</div>
+      </div>)}
+      {typing&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{padding:"10px 14px",borderRadius:"16px 16px 16px 4px",background:C.card2,border:"1px solid "+C.border,display:"flex",gap:4,alignItems:"center"}}>{[0,.2,.4].map(d=><span key={d} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.red,animation:"blink .7s ease "+d+"s infinite"}}/>)}</div></div>}
+    </div>
+    <div style={{padding:"8px 12px",borderTop:"1px solid "+C.border,flexShrink:0}}>
+      <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
+        {["Server status","Critical servers","Deployment list","Incidents","Is proxy connected?"].map(q=><button key={q} onClick={()=>setInput(q)} style={{padding:"3px 9px",background:C.red+"15",border:"1px solid "+C.red+"33",borderRadius:3,color:C.red,fontSize:10,cursor:"pointer",fontWeight:600}}>{q}</button>)}
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask about your infrastructure..." style={{flex:1,padding:"9px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
+        <button onClick={send} disabled={typing||!input.trim()} style={{padding:"9px 16px",background:C.red,border:"none",borderRadius:4,color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,opacity:typing||!input.trim()?.5:1}}>→</button>
+      </div>
+    </div>
+  </div>;
 }
