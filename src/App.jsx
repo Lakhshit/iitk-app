@@ -53,24 +53,34 @@ const drift   = (v,r,mn,mx) => Math.min(mx,Math.max(mn,v+(Math.random()-.5)*r));
 const PASSWORDS = { admin:"WLS@ADMIN", operator:"WLS@OPS", approver:"WLS@APPR" };
 
 // ─── WLS REST API Layer ─────────────────────────────────────────────────────
+const NGROK_HEADERS = {
+  "Accept": "application/json",
+  "ngrok-skip-browser-warning": "true",
+  "User-Agent": "GSCOCIPlatform/1.0"
+};
 const wlsApi = {
   async get(path) {
-    const r = await fetch(PROXY_URL + path, { headers:{ Accept:"application/json" } });
+    const r = await fetch(PROXY_URL + path, { headers: NGROK_HEADERS });
     if (!r.ok) throw new Error(`HTTP ${r.status} ${path}`);
     return r.json();
   },
   async post(path, body={}) {
-    const r = await fetch(PROXY_URL + path, { method:"POST", headers:{ "Content-Type":"application/json", Accept:"application/json" }, body: JSON.stringify(body) });
+    const r = await fetch(PROXY_URL + path, { method:"POST", headers:{ ...NGROK_HEADERS, "Content-Type":"application/json" }, body: JSON.stringify(body) });
     if (!r.ok) throw new Error(`HTTP ${r.status} ${path}`);
     return r.json();
   },
   async upload(path, formData) {
-    const r = await fetch(PROXY_URL + path, { method:"POST", body: formData });
+    const r = await fetch(PROXY_URL + path, { method:"POST", headers:{ "ngrok-skip-browser-warning":"true" }, body: formData });
     if (!r.ok) throw new Error(`HTTP ${r.status} ${path}`);
     return r.json();
   },
   async health() {
-    try { const r = await fetch(PROXY_URL + "/health", { signal: AbortSignal.timeout(3000) }); return r.ok; }
+    try {
+      const r = await fetch(PROXY_URL + "/health", { headers: NGROK_HEADERS, signal: AbortSignal.timeout(5000) });
+      if (!r.ok) return false;
+      const d = await r.json();
+      return d.status === "ok";
+    }
     catch { return false; }
   }
 };
