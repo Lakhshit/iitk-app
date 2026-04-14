@@ -17,7 +17,7 @@ const db = getDatabase(app);
 
 // ─── WLS Proxy Config ──────────────────────────────────────────────────────
 // Change this to your proxy URL. In Vercel, set env var REACT_APP_WLS_PROXY_URL
-const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "http://localhost:3001";
+const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "https://clapped-electable-clubbing.ngrok-free.dev";
 
 // ─── EmailJS ───────────────────────────────────────────────────────────────
 const EMAILJS_SERVICE_ID  = "YOUR_SERVICE_ID";
