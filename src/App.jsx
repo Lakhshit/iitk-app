@@ -17,7 +17,7 @@ const db = getDatabase(app);
 
 // ─── WLS Proxy Config ──────────────────────────────────────────────────────
 // Change this to your proxy URL. In Vercel, set env var REACT_APP_WLS_PROXY_URL
-const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "https://clapped-electable-clubbing.ngrok-free.dev";
+const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "http://localhost:3001";
 
 // ─── EmailJS ───────────────────────────────────────────────────────────────
 const EMAILJS_SERVICE_ID  = "YOUR_SERVICE_ID";
@@ -1819,93 +1819,146 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
 
 
 function ChatbotPanel({onClose,C,wls,deployments,incidentList,record,user,realMode}) {
-  const [messages,setMessages]=useState([{role:"assistant",content:"👋 Hi! I'm your OCI Assistant.\n\n"+(realMode?"🟢 Connected to real WebLogic!":"⚠ Running in simulation mode.")+"\n\nAsk me about servers, deployments, incidents, or infrastructure!"}]);
+  const INIT_MSG = {role:"assistant",content:"👋 Hi "+user.name+"! I'm your **AI-powered OCI Assistant** — powered by Claude AI.\n\n"+(realMode?"🟢 Connected to real WebLogic — I can see your live infrastructure data!":"📊 I can see your infrastructure data and analyse it intelligently.\n\nAsk me anything about your servers, deployments, incidents, or get recommendations!")};
+  const [messages,setMessages]=useState([INIT_MSG]);
   const [input,setInput]=useState("");
   const [typing,setTyping]=useState(false);
+  const [error,setError]=useState(null);
   const msgRef=useRef(null);
   useEffect(()=>{ if(msgRef.current) msgRef.current.scrollTop=msgRef.current.scrollHeight; },[messages]);
 
-  const buildAnswer=(q)=>{
-    const ql=q.toLowerCase();
+  // Build rich infrastructure context from live data
+  const buildContext=()=>{
     const critical=wls.filter(s=>s.status==="CRITICAL");
     const warning=wls.filter(s=>s.status==="WARNING");
-    const avgJvm=Math.round(wls.reduce((a,s)=>a+(s.jvmHeap||0),0)/wls.length);
+    const running=wls.filter(s=>s.status==="RUNNING");
+    const stopped=wls.filter(s=>s.status==="STOPPED");
     const openInc=incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status));
     const activeDeploys=deployments.filter(d=>d.state==="ACTIVE");
+    const avgCpu=Math.round(wls.reduce((a,s)=>a+(s.cpu||0),0)/Math.max(wls.length,1));
+    const avgJvm=Math.round(wls.reduce((a,s)=>a+(s.jvmHeap||0),0)/Math.max(wls.length,1));
 
-    if(ql.includes("deploy")&&(ql.includes("how")||ql.includes("what")||ql.includes("list"))) {
-      let m="🚀 Active Deployments ("+activeDeploys.length+"):\n\n";
-      activeDeploys.forEach(d=>m+="• "+d.name+" v"+(d.version||"?")+"\n  Targets: "+(d.targets||[]).join(", ")+"\n");
-      if(!realMode) m+="\n⚠ Simulation mode — connect proxy for real data.";
-      return m;
-    }
-    if(ql.includes("status")||ql.includes("all server")||ql.includes("overview")) {
-      let m="📊 WLS Status ("+wls.length+" servers):\n\n";
-      wls.forEach(s=>m+="• "+s.name+" — "+s.status+" | CPU:"+s.cpu+"% | JVM:"+s.jvmHeap+"%\n");
-      m+="\n⚡ "+activeDeploys.length+" apps active · 🚨 "+openInc.length+" open incidents";
-      return m;
-    }
-    if(ql.includes("critical")||ql.includes("problem")||ql.includes("attention")) {
-      if(!critical.length&&!warning.length) return "✅ All servers healthy! No critical or warning states.";
-      let m="🚨 Attention Required:\n\n";
-      critical.forEach(s=>m+="🔴 "+s.name+"\n  JVM:"+s.jvmHeap+"% CPU:"+s.cpu+"%\n  → Restart immediately\n\n");
-      warning.forEach(s=>m+="⚠ "+s.name+"\n  JVM:"+s.jvmHeap+"% CPU:"+s.cpu+"%\n  → Monitor closely\n\n");
-      return m;
-    }
-    if(ql.includes("jvm")||ql.includes("heap")) {
-      const h=wls.filter(s=>s.jvmHeap>80).sort((a,b)=>b.jvmHeap-a.jvmHeap);
-      if(!h.length) return "✅ All JVM Heaps healthy (avg: "+avgJvm+"%)";
-      let m="💾 JVM Alert (avg: "+avgJvm+"%):\n\n";
-      h.forEach(s=>m+="• "+s.name+": "+s.jvmHeap+"%\n");
-      m+="\nFix: Increase -Xmx to 4GB, review session timeout";
-      return m;
-    }
-    if(ql.includes("incident")) {
-      if(!openInc.length) return "✅ No open incidents!";
-      let m="🚨 Open Incidents ("+openInc.length+"):\n\n";
-      openInc.forEach(i=>m+="• ["+i.priority+"] "+(i.title||"Untitled")+" — "+i.status+"\n");
-      return m;
-    }
-    if(ql.includes("proxy")||ql.includes("real")||ql.includes("connect")) return realMode?"🟢 Proxy is CONNECTED — you're using real WLS data from:\n"+PROXY_URL:"⚠ Proxy DISCONNECTED — simulation mode.\n\nTo connect:\n1. Start proxy: node server.js\n2. Set REACT_APP_WLS_PROXY_URL env\n3. Reload the page";
-    if(ql.includes("recommend")||ql.includes("fix")||ql.includes("suggest")) {
-      let m="💡 Recommendations:\n\n";let n=1;
-      critical.forEach(s=>m+=n+++". 🔴 Restart "+s.name+" NOW\n");
-      warning.forEach(s=>m+=n+++". ⚠ Monitor "+s.name+"\n");
-      if(avgJvm>75) m+=n+++". 💾 Increase JVM heap → -Xmx4g\n";
-      m+=n+++". 📦 Check pending patches";
-      return m;
-    }
-    if(ql.includes("help")||ql.includes("what")) return "🤖 I can help with:\n• Server status & health\n• JVM/heap analysis\n• Deployment list\n• Open incidents\n• Proxy connection\n• Recommendations\n\nJust ask!";
-    return "🤖 Try: 'Server status', 'Critical servers', 'Deployment list', 'Open incidents', 'Is proxy connected?'";
+    return `You are an expert Oracle WebLogic and OCI infrastructure assistant embedded in GSC OCI Control Platform.
+You have access to LIVE infrastructure data. Analyse it intelligently and give actionable, specific advice.
+Be concise, use emojis for clarity, and always recommend specific actions.
+
+=== LIVE INFRASTRUCTURE DATA (${new Date().toLocaleTimeString()}) ===
+
+WEBLOGIC SERVERS (${wls.length} total):
+${wls.map(s=>`- ${s.name} [${s.env||"Production"}]: ${s.status} | CPU:${s.cpu||0}% | JVM Heap:${s.jvmHeap||0}% | Memory:${s.mem||0}% | Threads:${s.threads||0}/${s.maxThreads||200} | GC Time:${s.gcTime||0}ms | Uptime:${s.uptimeSecs?Math.floor(s.uptimeSecs/86400)+"d":"-"} | Version:${s.version||"14.1.1"}`).join("\n")}
+
+SUMMARY: ${running.length} RUNNING | ${critical.length} CRITICAL | ${warning.length} WARNING | ${stopped.length} STOPPED
+Average CPU: ${avgCpu}% | Average JVM: ${avgJvm}%
+${critical.length>0?"⚠ CRITICAL SERVERS NEED IMMEDIATE ATTENTION: "+critical.map(s=>s.name).join(", "):""}
+
+DEPLOYMENTS (${deployments.length} total, ${activeDeploys.length} active):
+${deployments.map(d=>`- ${d.name} [${d.type||"WAR"}]: ${d.state||"ACTIVE"} on ${(d.targets||[]).join(",")||"AdminServer"} v${d.version||"1.0"}`).join("\n")||"- pdc-app [WAR]: ACTIVE on AdminServer"}
+
+OPEN INCIDENTS (${openInc.length}):
+${openInc.length>0?openInc.map(i=>`- [${i.priority}] ${i.title||"Untitled"}: ${i.status} — ${i.affectedSystem||"Unknown"} — SLA: ${i.slaBreachAt||"N/A"}`).join("\n"):"No open incidents ✅"}
+
+CONNECTION: ${realMode?"LIVE WebLogic REST API connected":"Simulation mode with representative data"}
+PLATFORM: GSC OCI Control Platform | Oracle WebLogic 14.1.1 | Domain: GSC_Domain
+USER: ${user.name} (${user.role})
+
+=== END OF LIVE DATA ===
+
+Respond in a helpful, expert tone. Keep responses under 200 words unless generating a report.
+Use markdown-style formatting with line breaks. Always end with a specific actionable recommendation if relevant.`;
   };
 
-  const send=()=>{
+  const send=async()=>{
     if(!input.trim()||typing) return;
     const q=input.trim();
-    setMessages(p=>[...p,{role:"user",content:q}]);
-    setInput(""); setTyping(true);
-    setTimeout(()=>{ setMessages(p=>[...p,{role:"assistant",content:buildAnswer(q)}]); setTyping(false); },400+Math.random()*300);
+    const newMessages=[...messages,{role:"user",content:q}];
+    setMessages(newMessages);
+    setInput(""); setTyping(true); setError(null);
+    record("CHATBOT",{description:user.name+" asked Claude AI: "+q.slice(0,80)});
+
+    try {
+      const systemPrompt=buildContext();
+      // Build conversation history (last 10 messages for context)
+      const history=newMessages.slice(-10).map(m=>({role:m.role,content:m.content}));
+
+      const response=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          system:systemPrompt,
+          messages:history,
+        })
+      });
+
+      if(!response.ok) {
+        const err=await response.json().catch(()=>({}));
+        throw new Error(err.error?.message||"API error "+response.status);
+      }
+
+      const data=await response.json();
+      const reply=data.content?.[0]?.text||"Sorry, I couldn't generate a response.";
+      setMessages(p=>[...p,{role:"assistant",content:reply}]);
+    } catch(e) {
+      setError(e.message);
+      setMessages(p=>[...p,{role:"assistant",content:"⚠ Claude AI error: "+e.message+"\n\nCheck that the Anthropic API is accessible from your browser."}]);
+    } finally {
+      setTyping(false);
+    }
   };
 
-  return <div style={{position:"fixed",bottom:90,right:24,zIndex:999,width:380,height:520,background:C.card,border:"1px solid "+C.red+"44",borderRadius:4,boxShadow:"0 8px 32px rgba(0,0,0,.4)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-    <div style={{background:C.red,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:20}}>🤖</span><div><div style={{fontWeight:700,fontSize:14,color:"#fff"}}>OCI Assistant</div><div style={{fontSize:10,color:"rgba(255,255,255,.7)"}}>{realMode?"Live WLS data":"Simulation mode"}</div></div></div>
-      <button onClick={onClose} style={{background:"rgba(255,255,255,.2)",border:"none",borderRadius:"50%",width:28,height:28,cursor:"pointer",color:"#fff",fontSize:14}}>✕</button>
+  const QUICK=[
+    "Give me a full health assessment right now",
+    "Which servers need immediate attention?",
+    "Analyse JVM heap and recommend actions",
+    "Generate a P1 incident report",
+    "Is it safe to deploy now?",
+    "What is the root cause of current issues?",
+  ];
+
+  return <div style={{position:"fixed",bottom:90,right:24,zIndex:999,width:420,height:580,background:C.card,border:"1px solid "+C.red+"66",borderRadius:8,boxShadow:"0 12px 40px rgba(0,0,0,.5)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+    {/* Header */}
+    <div style={{background:"linear-gradient(135deg, "+C.red+" 0%, #8B1A10 100%)",padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🤖</div>
+        <div>
+          <div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Claude AI — OCI Assistant</div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,.7)",display:"flex",alignItems:"center",gap:4}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:realMode?"#4ade80":"#fbbf24",display:"inline-block"}}/>
+            {realMode?"Analysing live WebLogic data":"Analysing infrastructure data"}
+          </div>
+        </div>
+      </div>
+      <button onClick={onClose} style={{background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",borderRadius:"50%",width:28,height:28,cursor:"pointer",color:"#fff",fontSize:14}}>✕</button>
     </div>
+
+    {/* Messages */}
     <div ref={msgRef} style={{flex:1,overflowY:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}}>
-      {messages.map((m,i)=><div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-        <div style={{maxWidth:"90%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"16px 16px 16px 4px",background:m.role==="user"?C.red:C.card2,color:m.role==="user"?"#fff":C.text,fontSize:12,lineHeight:1.6,border:m.role==="user"?"none":"1px solid "+C.border,whiteSpace:"pre-line"}}>{m.content}</div>
+      {messages.map((m,i)=><div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",gap:8,alignItems:"flex-start"}}>
+        {m.role==="assistant"&&<div style={{width:24,height:24,borderRadius:"50%",background:C.red+"20",border:"1px solid "+C.red+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0,marginTop:2}}>🤖</div>}
+        <div style={{maxWidth:"85%",padding:"10px 14px",borderRadius:m.role==="user"?"16px 16px 4px 16px":"4px 16px 16px 16px",background:m.role==="user"?"linear-gradient(135deg, "+C.red+", #8B1A10)":C.card2,color:m.role==="user"?"#fff":C.text,fontSize:12,lineHeight:1.7,border:m.role==="user"?"none":"1px solid "+C.border,whiteSpace:"pre-wrap"}}>{m.content}</div>
       </div>)}
-      {typing&&<div style={{display:"flex",justifyContent:"flex-start"}}><div style={{padding:"10px 14px",borderRadius:"16px 16px 16px 4px",background:C.card2,border:"1px solid "+C.border,display:"flex",gap:4,alignItems:"center"}}>{[0,.2,.4].map(d=><span key={d} style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:C.red,animation:"blink .7s ease "+d+"s infinite"}}/>)}</div></div>}
+      {typing&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:24,height:24,borderRadius:"50%",background:C.red+"20",border:"1px solid "+C.red+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>🤖</div>
+        <div style={{padding:"10px 14px",borderRadius:"4px 16px 16px 16px",background:C.card2,border:"1px solid "+C.border,display:"flex",gap:5,alignItems:"center"}}>
+          <span style={{fontSize:11,color:C.muted}}>Claude AI is analysing your infrastructure</span>
+          {[0,.3,.6].map(d=><span key={d} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:C.red,animation:"blink .8s ease "+d+"s infinite"}}/>)}
+        </div>
+      </div>}
     </div>
+
+    {/* Quick prompts */}
     <div style={{padding:"8px 12px",borderTop:"1px solid "+C.border,flexShrink:0}}>
       <div style={{display:"flex",gap:5,marginBottom:8,flexWrap:"wrap"}}>
-        {["Server status","Critical servers","Deployment list","Incidents","Is proxy connected?"].map(q=><button key={q} onClick={()=>setInput(q)} style={{padding:"3px 9px",background:C.red+"15",border:"1px solid "+C.red+"33",borderRadius:3,color:C.red,fontSize:10,cursor:"pointer",fontWeight:600}}>{q}</button>)}
+        {QUICK.map(q=><button key={q} onClick={()=>setInput(q)} style={{padding:"3px 8px",background:C.red+"12",border:"1px solid "+C.red+"30",borderRadius:3,color:C.red,fontSize:10,cursor:"pointer",fontWeight:600,whiteSpace:"nowrap"}}>{q.slice(0,28)}{q.length>28?"…":""}</button>)}
       </div>
       <div style={{display:"flex",gap:8}}>
-        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask about your infrastructure..." style={{flex:1,padding:"9px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,color:C.text,fontSize:13,outline:"none",fontFamily:"inherit"}}/>
-        <button onClick={send} disabled={typing||!input.trim()} style={{padding:"9px 16px",background:C.red,border:"none",borderRadius:4,color:"#fff",cursor:"pointer",fontWeight:700,fontSize:13,opacity:typing||!input.trim()?.5:1}}>→</button>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Ask Claude AI about your infrastructure..." style={{flex:1,padding:"9px 12px",background:C.bg,border:"1px solid "+(error?C.danger:C.border),borderRadius:6,color:C.text,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
+        <button onClick={send} disabled={typing||!input.trim()} style={{padding:"9px 16px",background:C.red,border:"none",borderRadius:6,color:"#fff",cursor:typing||!input.trim()?"not-allowed":"pointer",fontWeight:700,fontSize:13,opacity:typing||!input.trim()?.5:1,transition:"opacity .2s"}}>
+          {typing?"⟳":"→"}
+        </button>
       </div>
+      <div style={{textAlign:"center",fontSize:9,color:C.dim,marginTop:6}}>Powered by Claude AI · Analysing live infrastructure data</div>
     </div>
   </div>;
 }
