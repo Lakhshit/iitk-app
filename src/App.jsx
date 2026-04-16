@@ -1879,15 +1879,9 @@ Never reveal you are an AI model from any company. You are the GSC OCI AI Assist
     try {
       const systemPrompt=buildContext();
       const history=newMessages.slice(-10).map(m=>({role:m.role,content:m.content}));
-      const response=await fetch("https://api.anthropic.com/v1/messages",{
+      const response=await fetch(PROXY_URL+"/api/ai/chat",{
         method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
-          system:systemPrompt,
-          messages:history,
-        })
+        headers:{"Content-Type":"application/json","ngrok-skip-browser-warning":"true"},
       });
       if(!response.ok) {
         const err=await response.json().catch(()=>({}));
