@@ -1952,52 +1952,6 @@ Never reveal you are an AI model from any company. You are the GSC OCI AI Assist
     </div>
   </div>;
 }
-  const [input,setInput]=useState("");
-  const [typing,setTyping]=useState(false);
-  const [error,setError]=useState(null);
-  const msgRef=useRef(null);
-  useEffect(()=>{ if(msgRef.current) msgRef.current.scrollTop=msgRef.current.scrollHeight; },[messages]);
-
-  // Build rich infrastructure context from live data
-  const buildContext=()=>{
-    const critical=wls.filter(s=>s.status==="CRITICAL");
-    const warning=wls.filter(s=>s.status==="WARNING");
-    const running=wls.filter(s=>s.status==="RUNNING");
-    const stopped=wls.filter(s=>s.status==="STOPPED");
-    const openInc=incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status));
-    const activeDeploys=deployments.filter(d=>d.state==="ACTIVE");
-    const avgCpu=Math.round(wls.reduce((a,s)=>a+(s.cpu||0),0)/Math.max(wls.length,1));
-    const avgJvm=Math.round(wls.reduce((a,s)=>a+(s.jvmHeap||0),0)/Math.max(wls.length,1));
-
-    return `You are an expert Oracle WebLogic and OCI infrastructure assistant embedded in GSC OCI Control Platform.
-You have access to LIVE infrastructure data. Analyse it intelligently and give actionable, specific advice.
-Be concise, use emojis for clarity, and always recommend specific actions.
-
-=== LIVE INFRASTRUCTURE DATA (${new Date().toLocaleTimeString()}) ===
-
-WEBLOGIC SERVERS (${wls.length} total):
-${wls.map(s=>`- ${s.name} [${s.env||"Production"}]: ${s.status} | CPU:${s.cpu||0}% | JVM Heap:${s.jvmHeap||0}% | Memory:${s.mem||0}% | Threads:${s.threads||0}/${s.maxThreads||200} | GC Time:${s.gcTime||0}ms | Uptime:${s.uptimeSecs?Math.floor(s.uptimeSecs/86400)+"d":"-"} | Version:${s.version||"14.1.1"}`).join("\n")}
-
-SUMMARY: ${running.length} RUNNING | ${critical.length} CRITICAL | ${warning.length} WARNING | ${stopped.length} STOPPED
-Average CPU: ${avgCpu}% | Average JVM: ${avgJvm}%
-${critical.length>0?"⚠ CRITICAL SERVERS NEED IMMEDIATE ATTENTION: "+critical.map(s=>s.name).join(", "):""}
-
-DEPLOYMENTS (${deployments.length} total, ${activeDeploys.length} active):
-${deployments.map(d=>`- ${d.name} [${d.type||"WAR"}]: ${d.state||"ACTIVE"} on ${(d.targets||[]).join(",")||"AdminServer"} v${d.version||"1.0"}`).join("\n")||"- pdc-app [WAR]: ACTIVE on AdminServer"}
-
-OPEN INCIDENTS (${openInc.length}):
-${openInc.length>0?openInc.map(i=>`- [${i.priority}] ${i.title||"Untitled"}: ${i.status} — ${i.affectedSystem||"Unknown"} — SLA: ${i.slaBreachAt||"N/A"}`).join("\n"):"No open incidents ✅"}
-
-CONNECTION: ${realMode?"LIVE WebLogic REST API connected":"Simulation mode with representative data"}
-PLATFORM: GSC OCI Control Platform | Oracle WebLogic 14.1.1 | Domain: GSC_Domain
-USER: ${user.name} (${user.role})
-
-=== END OF LIVE DATA ===
-
-Respond in a helpful, expert tone. Keep responses under 200 words unless generating a report.
-Use markdown-style formatting with line breaks. Always end with a specific actionable recommendation if relevant.`;
-  };
-
   const send=async()=>{
     if(!input.trim()||typing) return;
     const q=input.trim();
