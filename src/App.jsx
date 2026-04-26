@@ -255,7 +255,7 @@ function Login({onLogin,isDark,toggleTheme}) {
     <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');*{box-sizing:border-box}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pr{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.5);opacity:0}}@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
     <div style={{background:C.red,padding:"14px 32px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{display:"flex",alignItems:"center",gap:16}}>
-        <div style={{fontWeight:800,fontSize:22,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
+        <div style={{fontWeight:800,fontSize:22,color:"#fff",letterSpacing:-0.5}}>CLOUD</div>
         <div style={{width:1,height:24,background:"rgba(255,255,255,.3)"}}/>
         <div style={{color:"rgba(255,255,255,.9)",fontSize:14,fontWeight:600}}>Cloud Infrastructure Platform</div>
       </div>
@@ -527,7 +527,7 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     <header style={{background:C.headerBg,borderBottom:"1px solid "+C.border,position:"sticky",top:0,zIndex:100}}>
       <div style={{padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:50,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <div style={{fontWeight:800,fontSize:18,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
+          <div style={{fontWeight:800,fontSize:18,color:"#fff",letterSpacing:-0.5}}>CLOUD</div>
           <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
           <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600}}>Cloud Infrastructure Platform</div>
           {/* Real/Sim indicator */}
