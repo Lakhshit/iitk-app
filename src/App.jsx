@@ -23,7 +23,7 @@ const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "https://clapped-electa
 const EMAILJS_SERVICE_ID  = "YOUR_SERVICE_ID";
 const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
 const EMAILJS_PUBLIC_KEY  = "YOUR_PUBLIC_KEY";
-const ALERT_EMAIL         = "your-team@company.com";
+const ALERT_EMAIL         = "your-team@gscoci.in";
 
 // ─── Theme ─────────────────────────────────────────────────────────────────
 const DARK = {
@@ -56,7 +56,7 @@ const PASSWORDS = { admin:"WLS@ADMIN", operator:"WLS@OPS", approver:"WLS@APPR" }
 const NGROK_HEADERS = {
   "Accept": "application/json",
   "ngrok-skip-browser-warning": "true",
-  "User-Agent": "CloudInfraPlatform/1.0"
+  "User-Agent": "GSCOCIPlatform/1.0"
 };
 const wlsApi = {
   async get(path) {
@@ -87,17 +87,17 @@ const wlsApi = {
 
 // ─── Simulated fallback data ────────────────────────────────────────────────
 const WLS_SEED = [
-  { id:"wls1",name:"WLS-PROD-01",env:"Production",host:"prod-wls-01.company.com",port:7001,cpu:42,mem:68,threads:120,maxThreads:200,jvmHeap:72,gcTime:12,deployments:8,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
-  { id:"wls2",name:"WLS-PROD-02",env:"Production",host:"prod-wls-02.company.com",port:7001,cpu:38,mem:61,threads:98, maxThreads:200,jvmHeap:65,gcTime:8, deployments:8,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
-  { id:"wls3",name:"WLS-PROD-03",env:"Production",host:"prod-wls-03.company.com",port:7001,cpu:78,mem:87,threads:185,maxThreads:200,jvmHeap:89,gcTime:45,deployments:8,version:"14.1.1.0",uptimeSecs:1039800,status:"WARNING" },
-  { id:"wls4",name:"WLS-PROD-04",env:"Production",host:"prod-wls-04.company.com",port:7001,cpu:94,mem:96,threads:198,maxThreads:200,jvmHeap:98,gcTime:120,deployments:8,version:"14.1.1.0",uptimeSecs:177900, status:"CRITICAL"},
-  { id:"wls5",name:"WLS-UAT-01", env:"UAT",        host:"uat-wls-01.company.com", port:7001,cpu:25,mem:45,threads:60, maxThreads:150,jvmHeap:50,gcTime:5, deployments:5,version:"14.1.1.0",uptimeSecs:467200, status:"RUNNING" },
-  { id:"wls6",name:"WLS-DR-01",  env:"DR",         host:"dr-wls-01.company.com",  port:7001,cpu:5, mem:20,threads:10, maxThreads:200,jvmHeap:30,gcTime:2, deployments:8,version:"14.1.1.0",uptimeSecs:7776000,status:"STANDBY" },
-  { id:"wls7",name:"WLS-ADMIN",  env:"Production", host:"prod-wls-admin.company.com",port:7001,cpu:15,mem:35,threads:40,maxThreads:100,jvmHeap:40,gcTime:3, deployments:3,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
+  { id:"wls1",name:"WLS-PROD-01",env:"Production",host:"prod-wls-01.gscoci.in",port:7001,cpu:42,mem:68,threads:120,maxThreads:200,jvmHeap:72,gcTime:12,deployments:8,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
+  { id:"wls2",name:"WLS-PROD-02",env:"Production",host:"prod-wls-02.gscoci.in",port:7001,cpu:38,mem:61,threads:98, maxThreads:200,jvmHeap:65,gcTime:8, deployments:8,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
+  { id:"wls3",name:"WLS-PROD-03",env:"Production",host:"prod-wls-03.gscoci.in",port:7001,cpu:78,mem:87,threads:185,maxThreads:200,jvmHeap:89,gcTime:45,deployments:8,version:"14.1.1.0",uptimeSecs:1039800,status:"WARNING" },
+  { id:"wls4",name:"WLS-PROD-04",env:"Production",host:"prod-wls-04.gscoci.in",port:7001,cpu:94,mem:96,threads:198,maxThreads:200,jvmHeap:98,gcTime:120,deployments:8,version:"14.1.1.0",uptimeSecs:177900, status:"CRITICAL"},
+  { id:"wls5",name:"WLS-UAT-01", env:"UAT",        host:"uat-wls-01.gscoci.in", port:7001,cpu:25,mem:45,threads:60, maxThreads:150,jvmHeap:50,gcTime:5, deployments:5,version:"14.1.1.0",uptimeSecs:467200, status:"RUNNING" },
+  { id:"wls6",name:"WLS-DR-01",  env:"DR",         host:"dr-wls-01.gscoci.in",  port:7001,cpu:5, mem:20,threads:10, maxThreads:200,jvmHeap:30,gcTime:2, deployments:8,version:"14.1.1.0",uptimeSecs:7776000,status:"STANDBY" },
+  { id:"wls7",name:"WLS-ADMIN",  env:"Production", host:"prod-wls-admin.gscoci.in",port:7001,cpu:15,mem:35,threads:40,maxThreads:100,jvmHeap:40,gcTime:3, deployments:3,version:"14.1.1.0",uptimeSecs:3934200,status:"RUNNING" },
 ];
 const DEPLOY_SEED = [
   { name:"pdc-app",      type:"WAR", targets:["WLS-PROD-01","WLS-PROD-02"], state:"ACTIVE",   health:"OK",  version:"1.0.0", deployedAt:"10 Jan 09:12", size:"18 MB" },
-  { name:"app-portal",   type:"WAR", targets:["WLS-PROD-01","WLS-PROD-02"], state:"ACTIVE",   health:"OK",  version:"2.3.1", deployedAt:"08 Jan 14:30", size:"42 MB" },
+  { name:"gsc-portal",   type:"WAR", targets:["WLS-PROD-01","WLS-PROD-02"], state:"ACTIVE",   health:"OK",  version:"2.3.1", deployedAt:"08 Jan 14:30", size:"42 MB" },
   { name:"reporting-svc",type:"EAR", targets:["WLS-PROD-01"],               state:"ACTIVE",   health:"OK",  version:"3.1.0", deployedAt:"06 Jan 11:00", size:"65 MB" },
   { name:"batch-engine",  type:"JAR", targets:["WLS-PROD-02"],               state:"PREPARED", health:"WARN",version:"1.2.0", deployedAt:"04 Jan 08:00", size:"9 MB"  },
   { name:"uat-portal",    type:"WAR", targets:["WLS-UAT-01"],                state:"ACTIVE",   health:"OK",  version:"2.4.0-SNAPSHOT", deployedAt:"12 Jan 16:00", size:"44 MB" },
@@ -257,7 +257,7 @@ function Login({onLogin,isDark,toggleTheme}) {
       <div style={{display:"flex",alignItems:"center",gap:16}}>
         <div style={{fontWeight:800,fontSize:22,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
         <div style={{width:1,height:24,background:"rgba(255,255,255,.3)"}}/>
-        <div style={{color:"rgba(255,255,255,.9)",fontSize:14,fontWeight:600}}>Cloud Infrastructure Platform</div>
+        <div style={{color:"rgba(255,255,255,.9)",fontSize:14,fontWeight:600}}>GSC OCI Control Platform</div>
       </div>
       <div style={{display:"flex",gap:12,alignItems:"center"}}>
         <span style={{color:"rgba(255,255,255,.7)",fontSize:12}}>Enterprise Edition</span>
@@ -267,9 +267,9 @@ function Login({onLogin,isDark,toggleTheme}) {
     <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40}}>
       <div style={{width:"100%",maxWidth:960,display:"grid",gridTemplateColumns:"1fr 1fr",gap:40}}>
         <div>
-          <div style={{fontSize:13,color:C.red,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:12}}>Cloud Infrastructure Management</div>
+          <div style={{fontSize:13,color:C.red,fontWeight:700,letterSpacing:2,textTransform:"uppercase",marginBottom:12}}>GSC Oracle Cloud Infrastructure</div>
           <h1 style={{fontSize:36,fontWeight:800,color:C.text,margin:"0 0 16px",lineHeight:1.2}}>Infrastructure<br/>Control Platform</h1>
-          <p style={{color:C.muted,fontSize:14,lineHeight:1.7,marginBottom:28}}>Unified monitoring and management for Multi-Cloud Infrastructure — WebLogic, Compute, Databases, Kubernetes, Docker, OKE, Networking and more.</p>
+          <p style={{color:C.muted,fontSize:14,lineHeight:1.7,marginBottom:28}}>Unified monitoring and management for Oracle Cloud Infrastructure — WebLogic, Compute, Databases, OKE, Networking and more.</p>
           <div style={{fontFamily:"'JetBrains Mono',monospace",fontSize:24,fontWeight:700,color:C.red,marginBottom:4}}>{time.toLocaleTimeString()}</div>
           <div style={{fontSize:12,color:C.muted,marginBottom:24}}>{time.toLocaleDateString("en-IN",{weekday:"long",year:"numeric",month:"long",day:"numeric"})} · IST</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
@@ -304,7 +304,7 @@ function Login({onLogin,isDark,toggleTheme}) {
       </div>
     </div>
     <div style={{background:C.card,borderTop:"1px solid "+C.border,padding:"12px 32px",display:"flex",justifyContent:"space-between",fontSize:11,color:C.muted}}>
-      <span>© 2025 Cloud Infrastructure Platform · Multi-Cloud & DevOps</span>
+      <span>© 2025 GSC OCI Control Platform · Oracle Cloud Infrastructure</span>
       <span>Mumbai · Hyderabad · Enterprise Edition</span>
     </div>
   </div>;
@@ -329,7 +329,7 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
   // ─── Data state ──────────────────────────────────────────────────────────
   const [wls,setWls]=useState(WLS_SEED);
   const [deployments,setDeployments]=useState(DEPLOY_SEED);
-  const [termLines,setTermLines]=useState(["[INFO] Cloud Infrastructure Platform ready.","[INFO] Enterprise Edition · All systems monitored."]);
+  const [termLines,setTermLines]=useState(["[INFO] GSC OCI Control Platform ready.","[INFO] Enterprise Edition · All systems monitored."]);
   const [toasts,setToasts]=useState([]);
   const [modal,setModal]=useState(null);
   const [showChatbot,setShowChatbot]=useState(false);
@@ -523,13 +523,13 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     {/* Chatbot Btn */}
     <button onClick={()=>setShowChatbot(!showChatbot)} style={{position:"fixed",bottom:24,right:24,zIndex:500,width:52,height:52,borderRadius:"50%",background:C.red,border:"none",cursor:"pointer",fontSize:22,boxShadow:"0 4px 16px rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center"}} title="OCI Assistant">🤖</button>
 
-    {/* Platform Header */
+    {/* Oracle Header */}
     <header style={{background:C.headerBg,borderBottom:"1px solid "+C.border,position:"sticky",top:0,zIndex:100}}>
       <div style={{padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:50,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
           <div style={{fontWeight:800,fontSize:18,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
           <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
-          <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600}}>Cloud Infrastructure Platform</div>
+          <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600}}>GSC OCI Control Platform</div>
           {/* Real/Sim indicator */}
           <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.1)",borderRadius:4,padding:"3px 10px",fontSize:11}}>
             <Pulse color={proxyStatus==="connected"?C.success:proxyStatus==="checking"?C.blue:C.warning} size={6}/>
@@ -1116,10 +1116,10 @@ function IncidentsTab({C,incidentList,user,wls,addToast,record}) {
 
 function OnCallTab({C}) {
   const [roster,setRoster]=useState([
-    {id:"o1",name:"Rajesh Kumar",email:"rajesh@company.com",phone:"+919800000000",role:"Primary On-Call",escalation:1,available:true},
-    {id:"o2",name:"Priya Sharma",email:"priya@company.com",phone:"+919700000000",role:"Secondary On-Call",escalation:2,available:true},
-    {id:"o3",name:"Amit Verma",email:"amit@company.com",phone:"+919600000000",role:"Escalation L2",escalation:3,available:true},
-    {id:"o4",name:"Sneha Patel",email:"sneha@company.com",phone:"+919500000000",role:"OCI Admin",escalation:4,available:false},
+    {id:"o1",name:"Rajesh Kumar",email:"rajesh@gscoci.in",phone:"+919800000000",role:"Primary On-Call",escalation:1,available:true},
+    {id:"o2",name:"Priya Sharma",email:"priya@gscoci.in",phone:"+919700000000",role:"Secondary On-Call",escalation:2,available:true},
+    {id:"o3",name:"Amit Verma",email:"amit@gscoci.in",phone:"+919600000000",role:"Escalation L2",escalation:3,available:true},
+    {id:"o4",name:"Sneha Patel",email:"sneha@gscoci.in",phone:"+919500000000",role:"OCI Admin",escalation:4,available:false},
   ]);
   const primary=roster.find(r=>r.escalation===1&&r.available);
   return <div>
@@ -1197,9 +1197,9 @@ function DRTab({C}) {
 
 function PatchesTab({C,user,addToast,record}) {
   const [patches,setPatches]=useState([
-    {id:"p1",name:"JDK 17.0.10",server:"ALL WLS",priority:"Critical",status:"PENDING",cve:"CVE-2024-20918",impact:"Security"},
+    {id:"p1",name:"Oracle JDK 17.0.10",server:"ALL WLS",priority:"Critical",status:"PENDING",cve:"CVE-2024-20918",impact:"Security"},
     {id:"p2",name:"WebLogic 14.1.1 PSU",server:"ALL WLS",priority:"High",status:"SCHEDULED",cve:"CVE-2024-21006",impact:"Security+Perf"},
-    {id:"p3",name:"Enterprise Linux 8.9",server:"ALL Compute",priority:"Medium",status:"COMPLETED",cve:"N/A",impact:"OS Security"},
+    {id:"p3",name:"Oracle Linux 8.9",server:"ALL Compute",priority:"Medium",status:"COMPLETED",cve:"N/A",impact:"OS Security"},
     {id:"p4",name:"ADB Maintenance",server:"PROD-ADB-01",priority:"High",status:"PENDING",cve:"N/A",impact:"Database"},
   ]);
   const upd=(id,status)=>{setPatches(p=>p.map(x=>x.id===id?{...x,status}:x));addToast("Patch updated","",C.success,"📦");};
@@ -1353,7 +1353,7 @@ function ActivityTab({C,activityList,user}) {
     const rows=[["Time","User","Role","Action","Description"],...filtered.map(a=>[a.time,a.user,a.role,a.label,(a.description||"").replace(/,/g,";")])];
     const csv=rows.map(r=>r.join(",")).join("\n");
     const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    const l=document.createElement("a");l.href=url;l.download="activity_"+new Date().toISOString().slice(0,10)+".csv";l.click();
+    const l=document.createElement("a");l.href=url;l.download="gsc_activity_"+new Date().toISOString().slice(0,10)+".csv";l.click();
   };
   const todayCount=activityList.filter(a=>new Date(a.timestamp||0).toDateString()===now.toDateString()).length;
   return <div>
@@ -1477,7 +1477,7 @@ function PDCMonitorTab({C,wls,realMode,addToast,proxyStatus}) {
     {err&&<Card color={C.warning} C={C} style={{marginBottom:16}}>
       <div style={{fontWeight:700,marginBottom:10,fontSize:14}}>🔧 How to get PDC App running</div>
       <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {[["1","Build PDC app","cd wls-package/pdc-app && mvn clean package"],["2","Start WLS environment","cd scripts && ./start-wls.sh start-env"],["3","Deploy PDC app","./start-wls.sh deploy-pdc prod"],["4","Verify","curl http://localhost:8001/pdc/health"]].map(([n,label,cmd])=><div key={n} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+        {[["1","Build PDC app","cd wls-package/pdc-app && mvn clean package"],["2","Start WLS environment","cd scripts && ./gsc-wls.sh start-env"],["3","Deploy PDC app","./gsc-wls.sh deploy-pdc prod"],["4","Verify","curl http://localhost:8001/pdc/health"]].map(([n,label,cmd])=><div key={n} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
           <div style={{width:22,height:22,borderRadius:"50%",background:C.red,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{n}</div>
           <div><div style={{fontWeight:700,fontSize:12,color:C.text,marginBottom:3}}>{label}</div><code style={{fontSize:11,background:C.bg,padding:"3px 8px",borderRadius:3,color:C.cyan,border:"1px solid "+C.border,display:"block"}}>{cmd}</code></div>
         </div>)}
@@ -1579,14 +1579,14 @@ function PDCMonitorTab({C,wls,realMode,addToast,proxyStatus}) {
 function PipelineTab({C,deployments,wls,user,addToast,record,setDeployments,realMode,loadRealDeployments}) {
   const [pipelines,setPipelines]=useState([
     {id:"pl1",name:"pdc-app",stage:"PRODUCTION",lastBuild:"#47",status:"SUCCESS",branch:"main",commit:"a3f8c12",duration:"2m 34s",triggeredBy:"Auto",time:"10 min ago",steps:[{n:"Build",s:"SUCCESS"},{n:"Unit Tests",s:"SUCCESS"},{n:"Integration",s:"SUCCESS"},{n:"Deploy UAT",s:"SUCCESS"},{n:"Smoke Test",s:"SUCCESS"},{n:"Deploy PROD",s:"SUCCESS"}]},
-    {id:"pl2",name:"app-portal",stage:"UAT",lastBuild:"#23",status:"IN_PROGRESS",branch:"release/2.1",commit:"b7d4e91",duration:"1m 20s",triggeredBy:"Rajesh Kumar",time:"2 min ago",steps:[{n:"Build",s:"SUCCESS"},{n:"Unit Tests",s:"SUCCESS"},{n:"Integration",s:"IN_PROGRESS"},{n:"Deploy UAT",s:"PENDING"},{n:"Smoke Test",s:"PENDING"},{n:"Deploy PROD",s:"PENDING"}]},
+    {id:"pl2",name:"gsc-portal",stage:"UAT",lastBuild:"#23",status:"IN_PROGRESS",branch:"release/2.1",commit:"b7d4e91",duration:"1m 20s",triggeredBy:"Rajesh Kumar",time:"2 min ago",steps:[{n:"Build",s:"SUCCESS"},{n:"Unit Tests",s:"SUCCESS"},{n:"Integration",s:"IN_PROGRESS"},{n:"Deploy UAT",s:"PENDING"},{n:"Smoke Test",s:"PENDING"},{n:"Deploy PROD",s:"PENDING"}]},
     {id:"pl3",name:"batch-processor",stage:"FAILED",lastBuild:"#15",status:"FAILED",branch:"fix/timeout",commit:"c1a5f33",duration:"45s",triggeredBy:"Priya Sharma",time:"1 hr ago",steps:[{n:"Build",s:"SUCCESS"},{n:"Unit Tests",s:"FAILED"},{n:"Integration",s:"SKIPPED"},{n:"Deploy UAT",s:"SKIPPED"},{n:"Smoke Test",s:"SKIPPED"},{n:"Deploy PROD",s:"SKIPPED"}]},
   ]);
   const [history]=useState([
     {build:"#47",app:"pdc-app",status:"SUCCESS",env:"PROD",time:"10 min ago",by:"Auto CI",commit:"a3f8c12"},
     {build:"#46",app:"pdc-app",status:"SUCCESS",env:"PROD",time:"3 hr ago",by:"Lakhshit",commit:"9b2d4a1"},
-    {build:"#23",app:"app-portal",status:"IN_PROGRESS",env:"UAT",time:"2 min ago",by:"Rajesh Kumar",commit:"b7d4e91"},
-    {build:"#22",app:"app-portal",status:"SUCCESS",env:"UAT",time:"2 days ago",by:"Priya Sharma",commit:"f4e8c00"},
+    {build:"#23",app:"gsc-portal",status:"IN_PROGRESS",env:"UAT",time:"2 min ago",by:"Rajesh Kumar",commit:"b7d4e91"},
+    {build:"#22",app:"gsc-portal",status:"SUCCESS",env:"UAT",time:"2 days ago",by:"Priya Sharma",commit:"f4e8c00"},
     {build:"#15",app:"batch-processor",status:"FAILED",env:"UAT",time:"1 hr ago",by:"Priya Sharma",commit:"c1a5f33"},
     {build:"#14",app:"batch-processor",status:"SUCCESS",env:"PROD",time:"3 days ago",by:"Auto CI",commit:"d9f1b22"},
   ]);
@@ -1697,7 +1697,7 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
   const [wlsHost,setWlsHost]=useState("localhost");
   const [wlsPort,setWlsPort]=useState("7001");
   const [wlsUser,setWlsUser]=useState("weblogic");
-  const [wlsPass,setWlsPass]=useState("WLS@Admin2025!");
+  const [wlsPass,setWlsPass]=useState("WLS@GSC2025!");
   const [step,setStep]=useState(0);
 
   const testConnection=async()=>{
@@ -1716,17 +1716,17 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
   };
 
   const steps=[
-    {icon:"🐋",title:"Start Docker WLS Environment",cmd:"cd wls-package/scripts\n./start-wls.sh start-env",desc:"Pulls WLS 14.1.1 image and starts 3 managed servers + proxy. Requires Docker Desktop."},
-    {icon:"🔌",title:"Start Proxy Server (standalone)",cmd:"cd wls-package/proxy\nnpm install\nWLS_ADMIN_URL=http://localhost:7001 \\\nWLS_USERNAME=weblogic \\\nWLS_PASSWORD=WLS@Admin2025! \\\nALLOWED_ORIGINS=https://lakhshit.in \\\nnode server.js",desc:"If WLS is already running elsewhere (OCI VM), just run the proxy to bridge lakhshit.in → WLS REST API."},
+    {icon:"🐋",title:"Start Docker WLS Environment",cmd:"cd wls-package/scripts\n./gsc-wls.sh start-env",desc:"Pulls Oracle WLS 14.1.1 image and starts 3 managed servers + proxy. Requires Docker Desktop and Oracle Container Registry login."},
+    {icon:"🔌",title:"Start Proxy Server (standalone)",cmd:"cd wls-package/proxy\nnpm install\nWLS_ADMIN_URL=http://localhost:7001 \\\nWLS_USERNAME=weblogic \\\nWLS_PASSWORD=WLS@GSC2025! \\\nALLOWED_ORIGINS=https://lakhshit.in \\\nnode server.js",desc:"If WLS is already running elsewhere (OCI VM), just run the proxy to bridge lakhshit.in → WLS REST API."},
     {icon:"🌐",title:"Set Proxy URL in Vercel",cmd:"REACT_APP_WLS_PROXY_URL=http://YOUR_SERVER_IP:3001",desc:"In Vercel dashboard → Settings → Environment Variables. If using Docker locally, use your machine's IP or ngrok tunnel."},
-    {icon:"📦",title:"Build and Deploy PDC App",cmd:"cd wls-package/pdc-app\nmvn clean package\n\n# Then deploy\ncd ../scripts\n./start-wls.sh deploy-pdc prod",desc:"Builds the Java EE PDC WAR and deploys it to WLS-PROD-01 and WLS-PROD-02. Accessible at http://localhost:8001/pdc/"},
+    {icon:"📦",title:"Build and Deploy PDC App",cmd:"cd wls-package/pdc-app\nmvn clean package\n\n# Then deploy\ncd ../scripts\n./gsc-wls.sh deploy-pdc prod",desc:"Builds the Java EE PDC WAR and deploys it to WLS-PROD-01 and WLS-PROD-02. Accessible at http://localhost:8001/pdc/"},
     {icon:"✅",title:"Verify Integration",cmd:"# Test proxy\ncurl http://localhost:3001/health\n\n# Test WLS API\ncurl http://localhost:3001/api/servers\n\n# Test PDC app\ncurl http://localhost:8001/pdc/health",desc:"If all three return JSON responses, your lakhshit.in platform is fully connected to real WebLogic."},
   ];
 
   return <div>
     <div style={{marginBottom:20}}>
       <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>⚙ WLS Integration Setup</h2>
-      <p style={{color:C.muted,margin:0,fontSize:12}}>Connect lakhshit.in to a live WebLogic environment</p>
+      <p style={{color:C.muted,margin:0,fontSize:12}}>Connect lakhshit.in to a real Oracle WebLogic environment</p>
     </div>
 
     {/* Current Status */}
@@ -1811,7 +1811,7 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
         </div>)}
       </div>
       <div style={{marginTop:12,padding:"10px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,fontSize:11,color:C.muted}}>
-        Credentials: <strong style={{color:C.text}}>weblogic</strong> / <strong style={{color:C.text}}>WLS@Admin2025!</strong> · Domain: <strong style={{color:C.text}}>WLS_Domain</strong>
+        Credentials: <strong style={{color:C.text}}>weblogic</strong> / <strong style={{color:C.text}}>WLS@GSC2025!</strong> · Domain: <strong style={{color:C.text}}>GSC_Domain</strong>
       </div>
     </Card>
   </div>;
@@ -1819,7 +1819,7 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
 
 
 function ChatbotPanel({onClose,C,wls,deployments,incidentList,record,user,realMode}) {
-  const INIT_MSG = {role:"assistant",content:"👋 Hi "+user.name+"! I'm your **Cloud Infra AI Assistant**.\n\n"+(realMode?"🟢 Connected to live WebLogic — I can analyse your real infrastructure data!":"📊 I can see your infrastructure data and provide intelligent analysis.\n\nAsk me anything about your servers, deployments, incidents, or get recommendations!")};
+  const INIT_MSG = {role:"assistant",content:"👋 Hi "+user.name+"! I'm your **GSC OCI AI Assistant**.\n\n"+(realMode?"🟢 Connected to live WebLogic — I can analyse your real infrastructure data!":"📊 I can see your infrastructure data and provide intelligent analysis.\n\nAsk me anything about your servers, deployments, incidents, or get recommendations!")};
   const [messages,setMessages]=useState([INIT_MSG]);
   const [input,setInput]=useState("");
   const [typing,setTyping]=useState(false);
@@ -1837,10 +1837,10 @@ function ChatbotPanel({onClose,C,wls,deployments,incidentList,record,user,realMo
     const avgCpu=Math.round(wls.reduce((a,s)=>a+(s.cpu||0),0)/Math.max(wls.length,1));
     const avgJvm=Math.round(wls.reduce((a,s)=>a+(s.jvmHeap||0),0)/Math.max(wls.length,1));
 
-    return `You are an expert WebLogic, Kubernetes, Docker, and multi-cloud infrastructure assistant embedded in Cloud Infrastructure Platform.
+    return `You are an expert Oracle WebLogic and OCI infrastructure assistant embedded in GSC OCI Control Platform.
 You have access to LIVE infrastructure data. Analyse it intelligently and give actionable, specific advice.
 Be concise, use emojis for clarity, and always recommend specific actions.
-Never mention Claude, Anthropic, or any AI company or model name in your responses. You are the Cloud Infra AI Assistant.
+Never mention Claude, Anthropic, or any AI company or model name in your responses. You are the GSC OCI AI Assistant.
 
 === LIVE INFRASTRUCTURE DATA (${new Date().toLocaleTimeString()}) ===
 
@@ -1858,14 +1858,14 @@ OPEN INCIDENTS (${openInc.length}):
 ${openInc.length>0?openInc.map(i=>`- [${i.priority}] ${i.title||"Untitled"}: ${i.status} — ${i.affectedSystem||"Unknown"} — SLA: ${i.slaBreachAt||"N/A"}`).join("\n"):"No open incidents ✅"}
 
 CONNECTION: ${realMode?"LIVE WebLogic REST API connected":"Simulation mode with representative data"}
-PLATFORM: Cloud Infrastructure Platform | WebLogic 14.1.1 | Domain: WLS_Domain
+PLATFORM: GSC OCI Control Platform | Oracle WebLogic 14.1.1 | Domain: GSC_Domain
 USER: ${user.name} (${user.role})
 
 === END OF LIVE DATA ===
 
 Respond in a helpful, expert tone. Keep responses under 200 words unless generating a report.
 Use line breaks for readability. Always end with a specific actionable recommendation if relevant.
-Never reveal you are an AI model from any company. You are the Cloud Infra AI Assistant built into this platform.`;
+Never reveal you are an AI model from any company. You are the GSC OCI AI Assistant built into this platform.`;
   };
 
   const send=async()=>{
@@ -1912,7 +1912,7 @@ Never reveal you are an AI model from any company. You are the Cloud Infra AI As
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🤖</div>
         <div>
-          <div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Cloud Infra AI Assistant</div>
+          <div style={{fontWeight:800,fontSize:14,color:"#fff"}}>GSC OCI AI Assistant</div>
           <div style={{fontSize:10,color:"rgba(255,255,255,.7)",display:"flex",alignItems:"center",gap:4}}>
             <span style={{width:6,height:6,borderRadius:"50%",background:realMode?"#4ade80":"#fbbf24",display:"inline-block"}}/>
             {realMode?"Analysing live infrastructure":"Analysing infrastructure data"}
@@ -1929,7 +1929,7 @@ Never reveal you are an AI model from any company. You are the Cloud Infra AI As
       {typing&&<div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={{width:24,height:24,borderRadius:"50%",background:C.red+"20",border:"1px solid "+C.red+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>🤖</div>
         <div style={{padding:"10px 14px",borderRadius:"4px 16px 16px 16px",background:C.card2,border:"1px solid "+C.border,display:"flex",gap:5,alignItems:"center"}}>
-          <span style={{fontSize:11,color:C.muted}}>AI is analysing your infrastructure</span>
+          <span style={{fontSize:11,color:C.muted}}>GSC AI is analysing your infrastructure</span>
           {[0,.3,.6].map(d=><span key={d} style={{display:"inline-block",width:5,height:5,borderRadius:"50%",background:C.red,animation:"blink .8s ease "+d+"s infinite"}}/>)}
         </div>
       </div>}
@@ -1942,7 +1942,7 @@ Never reveal you are an AI model from any company. You are the Cloud Infra AI As
         <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder="Ask about your infrastructure..." style={{flex:1,padding:"9px 12px",background:C.bg,border:"1px solid "+(error?C.danger:C.border),borderRadius:6,color:C.text,fontSize:12,outline:"none",fontFamily:"inherit"}}/>
         <button onClick={send} disabled={typing||!input.trim()} style={{padding:"9px 16px",background:C.red,border:"none",borderRadius:6,color:"#fff",cursor:typing||!input.trim()?"not-allowed":"pointer",fontWeight:700,fontSize:13,opacity:typing||!input.trim()?.5:1}}>{typing?"⟳":"→"}</button>
       </div>
-      <div style={{textAlign:"center",fontSize:9,color:C.dim,marginTop:6}}>Cloud Infra AI Assistant · Intelligent Infrastructure Analysis</div>
+      <div style={{textAlign:"center",fontSize:9,color:C.dim,marginTop:6}}>GSC OCI AI Assistant · Intelligent Infrastructure Analysis</div>
     </div>
   </div>;
 }
