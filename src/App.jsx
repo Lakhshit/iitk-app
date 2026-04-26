@@ -523,7 +523,7 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     {/* Chatbot Btn */}
     <button onClick={()=>setShowChatbot(!showChatbot)} style={{position:"fixed",bottom:24,right:24,zIndex:500,width:52,height:52,borderRadius:"50%",background:C.red,border:"none",cursor:"pointer",fontSize:22,boxShadow:"0 4px 16px rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center"}} title="OCI Assistant">🤖</button>
 
-    {/* Platform Header */
+    {/* Platform Header */}
     <header style={{background:C.headerBg,borderBottom:"1px solid "+C.border,position:"sticky",top:0,zIndex:100}}>
       <div style={{padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:50,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
