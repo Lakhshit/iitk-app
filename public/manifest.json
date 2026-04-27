@@ -1,7 +1,7 @@
 {
-  "name": "GSC OCI Control Platform",
-  "short_name": "GSC OCI",
-  "description": "Global Service Centre - Oracle Cloud Infrastructure Management",
+  "name": "Cloud Infra Control",
+  "short_name": "Cloud Infra",
+  "description": "Cloud Infra - Oracle Cloud Infrastructure Management",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#060910",
