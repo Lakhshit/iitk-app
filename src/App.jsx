@@ -50,7 +50,7 @@ const fmtSize = (bytes) => { if(!bytes) return "0B"; const k=1024,s=["B","KB","M
 const scol    = (s,C) => ({RUNNING:C.green,AVAILABLE:C.green,ACTIVE:C.green,SUCCESS:C.green,HEALTHY:C.green,WARNING:C.warning,CRITICAL:C.danger,STOPPED:C.muted,STANDBY:C.cyan,STARTING:C.blue,STOPPING:C.orange,RESTARTING:C.purple,FAILED:C.danger,IN_PROGRESS:C.blue,PENDING:C.warning,OPEN:C.danger,ACKNOWLEDGED:C.warning,RESOLVED:C.green,CLOSED:C.muted,SCHEDULED:C.blue,COMPLETED:C.green,TERMINATED:C.muted,SHUTDOWN:C.muted,ADMIN:C.purple,UNKNOWN:C.muted}[s]||C.muted);
 const drift   = (v,r,mn,mx) => Math.min(mx,Math.max(mn,v+(Math.random()-.5)*r));
 
-const PASSWORDS = { admin:"ADMIN@2025!", operator:"OPS@2025!", approver:"APPR@2025!" };
+const PASSWORDS = { admin:"WLS@ADMIN", operator:"WLS@OPS", approver:"WLS@APPR" };
 
 // ─── WLS REST API Layer ─────────────────────────────────────────────────────
 const NGROK_HEADERS = {
@@ -255,7 +255,7 @@ function Login({onLogin,isDark,toggleTheme}) {
     <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap');*{box-sizing:border-box}@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes pr{0%{transform:scale(.5);opacity:1}100%{transform:scale(2.5);opacity:0}}@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}`}</style>
     <div style={{background:C.red,padding:"14px 32px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div style={{display:"flex",alignItems:"center",gap:16}}>
-        <div style={{fontWeight:800,fontSize:22,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
+        <div style={{fontWeight:800,fontSize:22,color:"#fff",letterSpacing:-0.5}}>CLOUD</div>
         <div style={{width:1,height:24,background:"rgba(255,255,255,.3)"}}/>
         <div style={{color:"rgba(255,255,255,.9)",fontSize:14,fontWeight:600}}>Cloud Infrastructure Platform</div>
       </div>
@@ -523,11 +523,11 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     {/* Chatbot Btn */}
     <button onClick={()=>setShowChatbot(!showChatbot)} style={{position:"fixed",bottom:24,right:24,zIndex:500,width:52,height:52,borderRadius:"50%",background:C.red,border:"none",cursor:"pointer",fontSize:22,boxShadow:"0 4px 16px rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center"}} title="OCI Assistant">🤖</button>
 
-    {/* Platform Header */
+    {/* Platform Header */}
     <header style={{background:C.headerBg,borderBottom:"1px solid "+C.border,position:"sticky",top:0,zIndex:100}}>
       <div style={{padding:"0 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:50,borderBottom:"1px solid rgba(255,255,255,.1)"}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <div style={{fontWeight:800,fontSize:18,color:"#fff",letterSpacing:-0.5}}>ORACLE</div>
+          <div style={{fontWeight:800,fontSize:18,color:"#fff",letterSpacing:-0.5}}>CLOUD</div>
           <div style={{width:1,height:20,background:"rgba(255,255,255,.3)"}}/>
           <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600}}>Cloud Infrastructure Platform</div>
           {/* Real/Sim indicator */}
@@ -1697,7 +1697,7 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
   const [wlsHost,setWlsHost]=useState("localhost");
   const [wlsPort,setWlsPort]=useState("7001");
   const [wlsUser,setWlsUser]=useState("weblogic");
-  const [wlsPass,setWlsPass]=useState("ADMIN@2025!2025!");
+  const [wlsPass,setWlsPass]=useState("WLS@Admin2025!");
   const [step,setStep]=useState(0);
 
   const testConnection=async()=>{
@@ -1717,7 +1717,7 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
 
   const steps=[
     {icon:"🐋",title:"Start Docker WLS Environment",cmd:"cd wls-package/scripts\n./start-wls.sh start-env",desc:"Pulls WLS 14.1.1 image and starts 3 managed servers + proxy. Requires Docker Desktop and Docker Hub or container registry login."},
-    {icon:"🔌",title:"Start Proxy Server (standalone)",cmd:"cd wls-package/proxy\nnpm install\nWLS_ADMIN_URL=http://localhost:7001 \\\nWLS_USERNAME=weblogic \\\nWLS_PASSWORD=ADMIN@2025!2025! \\\nALLOWED_ORIGINS=https://lakhshit.in \\\nnode server.js",desc:"If WLS is already running elsewhere (OCI VM), just run the proxy to bridge lakhshit.in → WLS REST API."},
+    {icon:"🔌",title:"Start Proxy Server (standalone)",cmd:"cd wls-package/proxy\nnpm install\nWLS_ADMIN_URL=http://localhost:7001 \\\nWLS_USERNAME=weblogic \\\nWLS_PASSWORD=WLS@Admin2025! \\\nALLOWED_ORIGINS=https://lakhshit.in \\\nnode server.js",desc:"If WLS is already running elsewhere (OCI VM), just run the proxy to bridge lakhshit.in → WLS REST API."},
     {icon:"🌐",title:"Set Proxy URL in Vercel",cmd:"REACT_APP_WLS_PROXY_URL=http://YOUR_SERVER_IP:3001",desc:"In Vercel dashboard → Settings → Environment Variables. If using Docker locally, use your machine's IP or ngrok tunnel."},
     {icon:"📦",title:"Build and Deploy PDC App",cmd:"cd wls-package/pdc-app\nmvn clean package\n\n# Then deploy\ncd ../scripts\n./start-wls.sh deploy-pdc prod",desc:"Builds the Java EE PDC WAR and deploys it to WLS-PROD-01 and WLS-PROD-02. Accessible at http://localhost:8001/pdc/"},
     {icon:"✅",title:"Verify Integration",cmd:"# Test proxy\ncurl http://localhost:3001/health\n\n# Test WLS API\ncurl http://localhost:3001/api/servers\n\n# Test PDC app\ncurl http://localhost:8001/pdc/health",desc:"If all three return JSON responses, your lakhshit.in platform is fully connected to real WebLogic."},
@@ -1811,7 +1811,7 @@ function WLSSetupTab({C,realMode,proxyStatus,addToast,record,user}) {
         </div>)}
       </div>
       <div style={{marginTop:12,padding:"10px 12px",background:C.bg,border:"1px solid "+C.border,borderRadius:4,fontSize:11,color:C.muted}}>
-        Credentials: <strong style={{color:C.text}}>weblogic</strong> / <strong style={{color:C.text}}>ADMIN@2025!2025!</strong> · Domain: <strong style={{color:C.text}}>WLS_Domain</strong>
+        Credentials: <strong style={{color:C.text}}>weblogic</strong> / <strong style={{color:C.text}}>WLS@Admin2025!</strong> · Domain: <strong style={{color:C.text}}>WLS_Domain</strong>
       </div>
     </Card>
   </div>;
@@ -1840,7 +1840,7 @@ function ChatbotPanel({onClose,C,wls,deployments,incidentList,record,user,realMo
     return `You are an expert WebLogic, Kubernetes, Docker and multi-cloud infrastructure assistant embedded in Cloud Infrastructure Platform.
 You have access to LIVE infrastructure data. Analyse it intelligently and give actionable, specific advice.
 Be concise, use emojis for clarity, and always recommend specific actions.
-You are the Cloud Infra AI Assistant. Answer infrastructure questions only.
+Never mention Claude, Anthropic, or any AI company or model name in your responses. You are the Cloud Infra AI Assistant.
 
 === LIVE INFRASTRUCTURE DATA (${new Date().toLocaleTimeString()}) ===
 
@@ -1946,4 +1946,5 @@ Never reveal you are an AI model from any company. You are the Cloud Infra AI As
     </div>
   </div>;
 }
+
 
