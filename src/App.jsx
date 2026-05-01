@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, onValue, push, update, remove } from "firebase/database";
+import AgentPanel from './AgentPanel'
 
 // ─── Firebase ──────────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -17,7 +18,8 @@ const db = getDatabase(app);
 
 // ─── WLS Proxy Config ──────────────────────────────────────────────────────
 // Change this to your proxy URL. In Vercel, set env var REACT_APP_WLS_PROXY_URL
-const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "https://clapped-electable-clubbing.ngrok-free.dev";
+const PROXY_URL  = process.env.REACT_APP_WLS_PROXY_URL  || "https://clapped-electable-clubbing.ngrok-free.dev";
+const AGENT_URL  = process.env.REACT_APP_AGENT_URL      || "https://clapped-electable-clubbing.ngrok-free.dev"; // ← paste your agent ngrok URL here
 
 // ─── EmailJS ───────────────────────────────────────────────────────────────
 const EMAILJS_SERVICE_ID  = "YOUR_SERVICE_ID";
@@ -510,6 +512,7 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     {id:"activity",   label:"Activity",       roles:["admin","approver"]},
     {id:"audit",      label:"Audit",          roles:["admin","approver"]},
     {id:"wls-setup",  label:"⚙ WLS Setup",    roles:["admin"]},
+    {id:"automation", label:"⚡ Automation",   roles:["admin","operator"]},
   ].filter(t=>t.roles.includes(user.role));
 
   const sp={C,wls,deployments,setDeployments,approvalList,auditList,incidentList,activityList,visitorList,feedbackList,user,handleOp,termLines,setTermLines,addToast,record,realMode,proxyStatus,loadRealDeployments};
@@ -570,6 +573,7 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
       {tab==="activity"    && <ActivityTab {...sp}/>}
       {tab==="audit"       && <AuditTab {...sp}/>}
       {tab==="wls-setup"   && <WLSSetupTab {...sp}/>}
+      {tab==="automation"  && <div style={{padding:"8px 0"}}><AgentPanel AGENT_URL={AGENT_URL} theme={isDark?"dark":"light"} C={C}/></div>}
     </main>
     <button onClick={()=>changeTab("feedback","Feedback")} style={{position:"fixed",bottom:24,left:24,zIndex:500,padding:"8px 18px",background:C.card,border:"1px solid "+C.border,borderRadius:4,cursor:"pointer",fontSize:13,fontWeight:700,color:C.text,boxShadow:"0 2px 8px "+C.shadow}}>💬 Feedback</button>
   </div>;
