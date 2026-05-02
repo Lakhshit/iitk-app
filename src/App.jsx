@@ -17,8 +17,8 @@ const app = initializeApp(firebaseConfig);
 const db  = getDatabase(app);
 
 // ─── Proxy / Agent URLs (set in Vercel env vars) ───────────────────────────
-const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "http://localhost:3001";
-const AGENT_URL = process.env.REACT_APP_AGENT_URL     || "http://localhost:3001";
+const PROXY_URL = process.env.REACT_APP_WLS_PROXY_URL || "https://clapped-electable-clubbing.ngrok-free.dev";
+const AGENT_URL = process.env.REACT_APP_AGENT_URL     || "https://clapped-electable-clubbing.ngrok-free.dev";
 
 // ─── Roles & passwords ─────────────────────────────────────────────────────
 const PASSWORDS = { admin:"WLS@ADMIN", operator:"WLS@OPS", approver:"WLS@APPR" };
