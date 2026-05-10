@@ -17,8 +17,8 @@ const app = initializeApp(firebaseConfig);
 const db  = getDatabase(app);
 
 //  Proxy / Agent URLs (set in Vercel env vars) 
-const PROXY_URL = "http://localhost:3001";
-const AGENT_URL = "http://localhost:3001";
+const PROXY_URL = "https://clapped-electable-clubbing.ngrok-free.dev";
+const AGENT_URL = "https://clapped-electable-clubbing.ngrok-free.dev";
 
 //  Roles & passwords 
 const PASSWORDS = { admin:"WLS@ADMIN", operator:"WLS@OPS", approver:"WLS@APPR", manager:"WLS@MGR" };
@@ -163,7 +163,7 @@ function ApprovalModal({op,target,user,onConfirm,onCancel,C,record}) {
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
     <Card color={C.warning} style={{width:"100%",maxWidth:480,padding:28}} C={C}>
       <div style={{marginBottom:20}}>
-        <div style={{fontWeight:800,fontSize:18,color:C.text,marginBottom:6}}>Submit for Approval</div>
+        <div style={{fontWeight:800,fontSize:18,color:C.text,marginBottom:6}}>{user.role==="admin"?" Execute Operation":" Submit for Approval"}</div>
         <div style={{fontSize:13,color:C.muted}}><strong style={{color:C.warning,fontFamily:"monospace"}}>{op}</strong> on <strong style={{color:C.text}}>{target}</strong></div>
       </div>
       <div style={{marginBottom:12}}>
@@ -176,7 +176,7 @@ function ApprovalModal({op,target,user,onConfirm,onCancel,C,record}) {
       <Inp value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason / justification *" rows={3} style={{marginBottom:16}} C={C}/>
       <div style={{display:"flex",gap:12}}>
         <button onClick={()=>{record&&record("OP_CANCEL",{operation:op,target});onCancel();}} style={{flex:1,padding:11,background:"transparent",border:"1px solid "+C.border,borderRadius:4,color:C.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-        <Btn color={C.blue} onClick={()=>reason.trim()&&onConfirm({reason,ticket,priority})} disabled={!reason.trim()} style={{flex:2,padding:11}} C={C}>Submit for Approval</Btn>
+        <Btn color={user.role==="admin"?C.success:C.warning} onClick={()=>reason.trim()&&onConfirm({reason,ticket,priority})} disabled={!reason.trim()} style={{flex:2,padding:11}} C={C}>{user.role==="admin"?" Execute Now":" Submit for Approval"}</Btn>
       </div>
     </Card>
   </div>;
@@ -390,28 +390,43 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     setModal({target,op,type:type||"wls"});
   };
 
-  const changeTab=(id,label)=>{ setTab(id); record("TAB_VISIT",{tab:label,description:user.name+" visited "+label}); };
-
   const confirmOp=async({reason,ticket,priority})=>{
     const {target,op,type}=modal;
     const name=typeof target==="string"?target:target.name;
     const sourcePath=typeof target==="object"?target.sourcePath:null;
     const targets=typeof target==="object"?target.targets:null;
-    const entry=Object.fromEntries(Object.entries({action:op+" on "+name,user:user.name,target:name,operation:op,reason,ticket,priority,time:nowStr(),resourceType:type,sourcePath:sourcePath||null,targets:targets||null}).filter(([,v])=>v!==undefined&&v!==null));
+    const entry={action:op+" on "+name,user:user.name,target:name,operation:op,reason,ticket,priority,time:nowStr(),resourceType:type,sourcePath,targets};
     // All operations require approval except for admin doing START
     const isProdCritical=(op==="STOP"||op==="RESTART")&&name.toLowerCase().includes("prod");
-    // ALL operations go through approval - Manager must approve before execution
-    {
+    const needsApproval=true; // ALL operations require Manager approval
+    if(!needsApproval) {
+      push(ref(db,"auditLogs"),{...entry,status:"APPROVED"});
+      record("OP_EXECUTE",{operation:op,target:name,description:user.name+" executed "+op+" on "+name});
+      addToast("Executing: "+op,name,C.success,"");
+      termLine("[INFO] "+op+" initiated on "+name);
+      if(realMode) {
+        try {
+          const res=await wlsApi.post("/api/servers/"+name+"/"+op.toLowerCase(),{reason});
+          termLine("[OK] "+(res.message||op+" sent to "+name));
+          addToast(op+" sent",name,C.success,"");
+          setTimeout(loadRealServers,5000);
+        } catch(e) {
+          termLine("[ERR] "+op+" failed: "+e.message);
+          addToast(op+" failed",e.message,C.danger,"");
+        }
+      }
+    } else {
       push(ref(db,"approvals"),{...entry,status:"PENDING",requestedBy:user.name});
       record("OP_SUBMIT",{operation:op,target:name});
-      addToast("Submitted for Approval","Pending Manager approval — check Approvals tab",C.warning,"");
+      const msg2=isProdCritical?"PROD operation requires Manager approval":"Awaiting Manager approval";
+      addToast("Submitted for Approval",msg2,C.warning,"");
       termLine("[PENDING] "+op+" on "+name+" sent to Manager for approval");
     }
     setModal(null);
-    changeTab("approvals","Approvals");
   };
 
   //  Tab routing 
+  const changeTab=(id,label)=>{ setTab(id); record("TAB_VISIT",{tab:label,description:user.name+" visited "+label}); };
 
   const pendingApprovals = approvalList.filter(a=>a.status==="PENDING").length;
   const openIncidents    = incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status)).length;
@@ -446,7 +461,7 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
           <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600}}>Cloud Infrastructure Platform</div>
           <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.1)",borderRadius:4,padding:"3px 10px",fontSize:11}}>
             <Pulse color={proxyStatus==="connected"?C.success:proxyStatus==="checking"?C.blue:C.warning} size={6}/>
-            <span style={{color:"rgba(255,255,255,.8)",fontWeight:700}}>{proxyStatus==="connected"?"Connected — gsc_domain":proxyStatus==="checking"?"Connecting..":"Disconnected"}</span>
+            <span style={{color:"rgba(255,255,255,.8)",fontWeight:700}}>{proxyStatus==="connected"?"LIVE WLS":proxyStatus==="checking"?"CONNECTING":"DISCONNECTED"}</span>
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -738,7 +753,7 @@ function DeploymentsTab({C,wls,deployments,setDeployments,user,handleOp,termLine
                   {dep.deployedAt&&<span> {dep.deployedAt}</span>}
                 </div>
                 <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
-                  {(Array.isArray(dep.targets) ? dep.targets : dep.targets ? String(dep.targets).split(",").map(s=>s.trim()) : []).map(t=><Chip key={t} label={t} color={C.blue}/>)}
+                  {(dep.targets||[]).map(t=><Chip key={t} label={t} color={C.blue}/>)}
                 </div>
               </div>
               {canDeploy&&<div style={{display:"flex",gap:7,flexShrink:0,flexWrap:"wrap"}}>
@@ -1367,7 +1382,7 @@ function ApprovalsTab({C,approvalList,user,record,addToast,realMode,loadRealServ
     record("OP_APPROVE",{operation:item.operation,target:item.target});
     setLocalTerm(p=>[...p,"[OK] APPROVED by "+user.name,"[INFO] Executing "+item.operation+" on "+item.target+"..."]);
     addToast("Approved",item.operation+" on "+item.target,C.success,"OK");
-    const proxyUrl="http://localhost:3001";
+    const proxyUrl="https://clapped-electable-clubbing.ngrok-free.dev";
     const op=(item.operation||"").toLowerCase();
     const target=item.target||"";
     try {
