@@ -163,7 +163,7 @@ function ApprovalModal({op,target,user,onConfirm,onCancel,C,record}) {
   return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center"}}>
     <Card color={C.warning} style={{width:"100%",maxWidth:480,padding:28}} C={C}>
       <div style={{marginBottom:20}}>
-        <div style={{fontWeight:800,fontSize:18,color:C.text,marginBottom:6}}>{user.role==="admin"?" Execute Operation":" Submit for Approval"}</div>
+        <div style={{fontWeight:800,fontSize:18,color:C.text,marginBottom:6}}>Submit for Approval</div>
         <div style={{fontSize:13,color:C.muted}}><strong style={{color:C.warning,fontFamily:"monospace"}}>{op}</strong> on <strong style={{color:C.text}}>{target}</strong></div>
       </div>
       <div style={{marginBottom:12}}>
@@ -176,7 +176,7 @@ function ApprovalModal({op,target,user,onConfirm,onCancel,C,record}) {
       <Inp value={reason} onChange={e=>setReason(e.target.value)} placeholder="Reason / justification *" rows={3} style={{marginBottom:16}} C={C}/>
       <div style={{display:"flex",gap:12}}>
         <button onClick={()=>{record&&record("OP_CANCEL",{operation:op,target});onCancel();}} style={{flex:1,padding:11,background:"transparent",border:"1px solid "+C.border,borderRadius:4,color:C.muted,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-        <Btn color={user.role==="admin"?C.success:C.warning} onClick={()=>reason.trim()&&onConfirm({reason,ticket,priority})} disabled={!reason.trim()} style={{flex:2,padding:11}} C={C}>{user.role==="admin"?" Execute Now":" Submit for Approval"}</Btn>
+        <Btn color={C.blue} onClick={()=>reason.trim()&&onConfirm({reason,ticket,priority})} disabled={!reason.trim()} style={{flex:2,padding:11}} C={C}>Submit for Approval</Btn>
       </div>
     </Card>
   </div>;
@@ -296,7 +296,6 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
       setProxyStatus(ok?"connected":"disconnected");
       setRealMode(ok);
       if(ok) {
-        addToast("— Connected","Real WLS data active",C.success,"");
         loadRealServers();
         loadRealDeployments();
       }
@@ -391,43 +390,28 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     setModal({target,op,type:type||"wls"});
   };
 
+  const changeTab=(id,label)=>{ setTab(id); record("TAB_VISIT",{tab:label,description:user.name+" visited "+label}); };
+
   const confirmOp=async({reason,ticket,priority})=>{
     const {target,op,type}=modal;
     const name=typeof target==="string"?target:target.name;
     const sourcePath=typeof target==="object"?target.sourcePath:null;
     const targets=typeof target==="object"?target.targets:null;
-    const entry={action:op+" on "+name,user:user.name,target:name,operation:op,reason,ticket,priority,time:nowStr(),resourceType:type,sourcePath,targets};
+    const entry=Object.fromEntries(Object.entries({action:op+" on "+name,user:user.name,target:name,operation:op,reason,ticket,priority,time:nowStr(),resourceType:type,sourcePath:sourcePath||null,targets:targets||null}).filter(([,v])=>v!==undefined&&v!==null));
     // All operations require approval except for admin doing START
     const isProdCritical=(op==="STOP"||op==="RESTART")&&name.toLowerCase().includes("prod");
-    const needsApproval=true; // ALL operations require Manager approval
-    if(!needsApproval) {
-      push(ref(db,"auditLogs"),{...entry,status:"APPROVED"});
-      record("OP_EXECUTE",{operation:op,target:name,description:user.name+" executed "+op+" on "+name});
-      addToast("Executing: "+op,name,C.success,"");
-      termLine("[INFO] "+op+" initiated on "+name);
-      if(realMode) {
-        try {
-          const res=await wlsApi.post("/api/servers/"+name+"/"+op.toLowerCase(),{reason});
-          termLine("[OK] "+(res.message||op+" sent to "+name));
-          addToast(op+" sent",name,C.success,"");
-          setTimeout(loadRealServers,5000);
-        } catch(e) {
-          termLine("[ERR] "+op+" failed: "+e.message);
-          addToast(op+" failed",e.message,C.danger,"");
-        }
-      }
-    } else {
+    // ALL operations go through approval - Manager must approve before execution
+    {
       push(ref(db,"approvals"),{...entry,status:"PENDING",requestedBy:user.name});
       record("OP_SUBMIT",{operation:op,target:name});
-      const msg2=isProdCritical?"PROD operation requires Manager approval":"Awaiting Manager approval";
-      addToast("Submitted for Approval",msg2,C.warning,"");
+      addToast("Submitted for Approval","Pending Manager approval — check Approvals tab",C.warning,"");
       termLine("[PENDING] "+op+" on "+name+" sent to Manager for approval");
     }
     setModal(null);
+    changeTab("approvals","Approvals");
   };
 
   //  Tab routing 
-  const changeTab=(id,label)=>{ setTab(id); record("TAB_VISIT",{tab:label,description:user.name+" visited "+label}); };
 
   const pendingApprovals = approvalList.filter(a=>a.status==="PENDING").length;
   const openIncidents    = incidentList.filter(i=>["OPEN","ACKNOWLEDGED"].includes(i.status)).length;
@@ -442,6 +426,8 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
     {id:"incidents",   label:"Incidents"+(openIncidents>0?" ("+openIncidents+")":""),       roles:["admin","operator","approver","viewer","manager"]},
     {id:"audit",       label:"Audit",         roles:["admin","approver","manager"]},
     {id:"automation",  label:" Automation",  roles:["admin","operator"]},
+    {id:"security",    label:"Security",      roles:["admin","manager","approver"]},
+    {id:"mythos",      label:"OCI Advisory", roles:["admin","manager","approver"]},
   ].filter(t=>t.roles.includes(user.role));
 
   const sp={C,wls,deployments,setDeployments,approvalList,auditList,incidentList,activityList,feedbackList,user,handleOp,termLines,setTermLines,addToast,record,realMode,proxyStatus,loadRealDeployments,loadRealServers};
@@ -460,12 +446,12 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
           <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:600}}>Cloud Infrastructure Platform</div>
           <div style={{display:"flex",alignItems:"center",gap:6,background:"rgba(255,255,255,.1)",borderRadius:4,padding:"3px 10px",fontSize:11}}>
             <Pulse color={proxyStatus==="connected"?C.success:proxyStatus==="checking"?C.blue:C.warning} size={6}/>
-            <span style={{color:"rgba(255,255,255,.8)",fontWeight:700}}>{proxyStatus==="connected"?"LIVE WLS":proxyStatus==="checking"?"CONNECTING":"DISCONNECTED"}</span>
+            <span style={{color:"rgba(255,255,255,.8)",fontWeight:700}}>{proxyStatus==="connected"?"Connected — gsc_domain":proxyStatus==="checking"?"Connecting..":"Disconnected"}</span>
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {criticalWLS>0&&<div style={{display:"flex",alignItems:"center",gap:5,background:C.danger+"25",border:"1px solid "+C.danger+"55",borderRadius:4,padding:"3px 10px"}}><Pulse color={C.danger} size={6}/><span style={{fontSize:11,fontWeight:700,color:C.danger}}>{criticalWLS} CRITICAL</span></div>}
-          <button onClick={toggleTheme} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:4,padding:"5px 12px",cursor:"pointer",color:"#fff",fontSize:12,fontWeight:600}}>{isDark?"":""}</button>
+          <button onClick={toggleTheme} style={{background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.35)",borderRadius:4,padding:"5px 14px",cursor:"pointer",color:"#fff",fontSize:12,fontWeight:700,letterSpacing:0.3}}>{isDark?"Light Mode":"Dark Mode"}</button>
           <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",borderRadius:4,padding:"4px 12px"}}>
             <div style={{width:22,height:22,borderRadius:"50%",background:C.red,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff"}}>{user.initials}</div>
             <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>{user.name}</span>
@@ -496,6 +482,8 @@ function MainApp({user,onLogout,isDark,toggleTheme}) {
       {tab==="activity"    && <ActivityTab {...sp}/>}
       {tab==="audit"       && <AuditTab {...sp}/>}
       {tab==="automation"  && <div style={{padding:"8px 0"}}><AgentPanel AGENT_URL={AGENT_URL} theme={isDark?"dark":"light"} C={C}/></div>}
+      {tab==="security"    && <SecurityTab C={C} user={user} wlsApi={wlsApi} addToast={addToast} realMode={realMode}/>}
+      {tab==="mythos"      && <MythosTab C={C} user={user} wlsApi={wlsApi} addToast={addToast} realMode={realMode}/>}
     </main>
 
     <button onClick={()=>changeTab("feedback","Feedback")} style={{position:"fixed",bottom:24,left:24,zIndex:500,padding:"8px 18px",background:C.card,border:"1px solid "+C.border,borderRadius:4,cursor:"pointer",fontSize:13,fontWeight:700,color:C.text,boxShadow:"0 2px 8px "+C.shadow}}> Feedback</button>
@@ -512,7 +500,7 @@ function OverviewTab({C,wls,deployments,incidentList,approvalList,auditList,real
     <div style={{marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10}}>
       <div>
         <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Infrastructure Overview</h2>
-        <div style={{display:"flex",alignItems:"center",gap:8}}><Pulse color={realMode?C.success:C.warning} size={6}/><span style={{fontSize:12,color:C.muted}}>{realMode?"Live data from WebLogic REST API":"Not connected  check proxy"}</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><Pulse color={realMode?C.success:C.warning} size={6}/><span style={{fontSize:12,color:C.muted}}>{realMode?"":"Not connected  check proxy"}</span></div>
       </div>
       {realMode&&<div style={{display:"flex",gap:8}}>
         <Btn color={C.blue} sm onClick={loadRealServers} C={C}> Refresh Servers</Btn>
@@ -569,7 +557,7 @@ function OverviewTab({C,wls,deployments,incidentList,approvalList,auditList,real
               <span style={{fontWeight:600,fontSize:12,color:C.text}}>{d.name}</span>
               <Badge text={d.state||"ACTIVE"} color={scol(d.state||"ACTIVE",C)}/>
             </div>
-            <div style={{fontSize:10,color:C.muted}}>{d.type} · {(d.targets||[]).join(", ")}</div>
+            <div style={{fontSize:10,color:C.muted}}>{d.type} · {(Array.isArray(d.targets) ? d.targets : d.targets ? [d.targets] : []).join(", ")}</div>
           </div>)}
         </Card>
         <Card color={C.danger} C={C}>
@@ -607,7 +595,7 @@ function WebLogicTab({C,wls,user,handleOp,realMode,addToast}) {
       <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>WebLogic Servers</h2>
       <div style={{display:"flex",gap:8,alignItems:"center"}}>
         <p style={{color:C.muted,margin:0,fontSize:12}}>{wls.length} servers · Click for details</p>
-        {realMode&&<Badge text="LIVE WLS DATA" color={C.success}/>}
+        {realMode&&<Badge text={"Connected — gsc_domain"} color={C.success}/>}
         {!realMode&&<Badge text="NOT CONNECTED" color={C.warning}/>}
       </div>
     </div>
@@ -667,7 +655,7 @@ function WebLogicTab({C,wls,user,handleOp,realMode,addToast}) {
 
 //  Deployments Tab 
 function DeploymentsTab({C,wls,deployments,setDeployments,user,handleOp,termLines,setTermLines,addToast,record,realMode,loadRealDeployments}) {
-  const [deployForm,setDeployForm]=useState({appName:"",sourcePath:"/tmp/pdc-app.war",targets:"AdminServer"});
+  const [deployForm,setDeployForm]=useState({appName:"pdc-app",sourcePath:"/tmp/pdc-app.war",targets:"AdminServer"});
   const [showDeploy,setShowDeploy]=useState(false);
   const [filter,setFilter]=useState("ALL");
 
@@ -675,7 +663,7 @@ function DeploymentsTab({C,wls,deployments,setDeployments,user,handleOp,termLine
     if(!deployForm.appName||!deployForm.sourcePath) return addToast("Error","App name and path required",C.danger,"ERR");
     handleOp({name:deployForm.appName,sourcePath:deployForm.sourcePath,targets:deployForm.targets.split(",").map(t=>t.trim())},"DEPLOY","deployment");
     setShowDeploy(false);
-    setDeployForm({appName:"",sourcePath:"/tmp/pdc-app.war",targets:"AdminServer"});
+    setDeployForm({appName:"pdc-app",sourcePath:"/tmp/pdc-app.war",targets:"AdminServer"});
   };
 
   const termLine=(l)=>setTermLines(p=>[...p,l]);
@@ -695,7 +683,7 @@ function DeploymentsTab({C,wls,deployments,setDeployments,user,handleOp,termLine
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16,flexWrap:"wrap",gap:10}}>
       <div>
         <h2 style={{fontSize:22,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Deployments</h2>
-        <p style={{color:C.muted,margin:0,fontSize:12}}>{deployments.length} applications · {realMode?<strong style={{color:C.success}}>LIVE WLS DATA</strong>:<strong style={{color:C.warning}}>Not connected</strong>}</p>
+        <p style={{color:C.muted,margin:0,fontSize:12}}>{deployments.length} applications · {realMode?<strong style={{color:C.success}}>Connected — gsc_domain</strong>:<strong style={{color:C.warning}}>Not connected</strong>}</p>
       </div>
       {canDeploy&&<div style={{display:"flex",gap:8}}>
         
@@ -750,7 +738,7 @@ function DeploymentsTab({C,wls,deployments,setDeployments,user,handleOp,termLine
                   {dep.deployedAt&&<span> {dep.deployedAt}</span>}
                 </div>
                 <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
-                  {(dep.targets||[]).map(t=><Chip key={t} label={t} color={C.blue}/>)}
+                  {(Array.isArray(dep.targets) ? dep.targets : dep.targets ? String(dep.targets).split(",").map(s=>s.trim()) : []).map(t=><Chip key={t} label={t} color={C.blue}/>)}
                 </div>
               </div>
               {canDeploy&&<div style={{display:"flex",gap:7,flexShrink:0,flexWrap:"wrap"}}>
@@ -835,6 +823,541 @@ function OperationsTab({C,wls,user,approvalList,handleOp,termLines,setTermLines,
 }
 
 //  Approvals Tab 
+
+// ════════════════════════════════════════════════════════
+// SECURITY TAB
+// ════════════════════════════════════════════════════════
+function SecurityTab({C,user,wlsApi,addToast,realMode}) {
+  const [scanning,setScanning]=useState(false);
+  const [results,setResults]=useState(null);
+  const [report,setReport]=useState('');
+  const [loadingReport,setLoadingReport]=useState(false);
+  const [activeCategory,setActiveCategory]=useState('ALL');
+
+  const runScan=async()=>{
+    if(!realMode) return addToast("Not connected","Connect to WebLogic first",C.warning,"");
+    setScanning(true); setResults(null); setReport('');
+    try {
+      const data=await wlsApi.post("/api/security/scan",{});
+      setResults(data);
+      addToast("Scan complete",`Risk Level: ${data.riskLevel}`,
+        data.riskLevel==="CRITICAL"||data.riskLevel==="HIGH"?C.danger:C.success,"");
+    } catch(e) {
+      addToast("Scan failed",e.message,C.danger,"");
+    }
+    setScanning(false);
+  };
+
+  const generateReport=async()=>{
+    if(!results) return;
+    setLoadingReport(true);
+    try {
+      const data=await wlsApi.post("/api/security/report",{
+        findings:results.findings,
+        summary:results.summary,
+        riskLevel:results.riskLevel,
+        riskScore:results.riskScore,
+      });
+      setReport(data.report);
+    } catch(e) {
+      addToast("Report failed",e.message,C.danger,"");
+    }
+    setLoadingReport(false);
+  };
+
+  const downloadReport=()=>{
+    if(!report||!results) return;
+    // Use jsPDF via CDN loaded dynamically
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload = () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const W = 210, margin = 15, lineH = 7;
+      let y = 20;
+
+      const addText = (text, size, color, bold, maxW) => {
+        doc.setFontSize(size);
+        doc.setTextColor(...color);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        const lines = doc.splitTextToSize(text, maxW || W - margin * 2);
+        lines.forEach(line => {
+          if(y > 275) { doc.addPage(); y = 20; }
+          doc.text(line, margin, y);
+          y += size * 0.45;
+        });
+        y += 2;
+      };
+
+      const addRect = (col, h) => {
+        doc.setFillColor(...col);
+        doc.rect(0, y - 6, W, h || lineH + 2, 'F');
+      };
+
+      // Header
+      addRect([15, 23, 42], 18);
+      doc.setFontSize(18); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+      doc.text('GSC WebLogic Security Assessment Report', margin, y + 4);
+      y += 18;
+
+      // Metadata bar
+      addRect([30, 41, 60], 10);
+      doc.setFontSize(9); doc.setTextColor(148,163,184); doc.setFont('helvetica','normal');
+      doc.text('Generated: ' + new Date().toLocaleString() + '   |   WebLogic 14.1.1   |   Oracle GSC   |   Classification: Internal', margin, y + 3);
+      y += 14;
+
+      // Risk Score box
+      const rCol = results.riskLevel==='CRITICAL'?[220,38,38]:results.riskLevel==='HIGH'?[249,115,22]:results.riskLevel==='MEDIUM'?[245,158,11]:[34,197,94];
+      doc.setFillColor(...rCol);
+      doc.roundedRect(margin, y, 55, 18, 3, 3, 'F');
+      doc.setFontSize(11); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+      doc.text('Risk: ' + results.riskLevel, margin + 4, y + 7);
+      doc.text('Score: ' + results.riskScore + '/100', margin + 4, y + 14);
+
+      // Summary stats
+      const stats = [['Critical', results.summary.critical, [220,38,38]], ['High', results.summary.high, [249,115,22]], ['Medium', results.summary.medium, [245,158,11]], ['Passed', results.summary.passed, [34,197,94]]];
+      stats.forEach((st, i) => {
+        const sx = 80 + i * 32;
+        doc.setFillColor(...st[2]);
+        doc.roundedRect(sx, y, 28, 18, 2, 2, 'F');
+        doc.setFontSize(14); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+        doc.text(String(st[1]), sx + 10, y + 10, {align:'center'});
+        doc.setFontSize(8); doc.text(st[0], sx + 10, y + 16, {align:'center'});
+      });
+      y += 26;
+
+      // AI Report
+      addText('Executive Assessment', 13, [13,148,136], true);
+      doc.setDrawColor(13,148,136); doc.setLineWidth(0.5);
+      doc.line(margin, y - 1, W - margin, y - 1);
+      y += 3;
+
+      const reportLines = report.split('\n');
+      reportLines.forEach(line => {
+        if(!line.trim()) { y += 3; return; }
+        if(line.startsWith('## ')) {
+          y += 2;
+          addText(line.replace('## ',''), 12, [15,23,42], true);
+          doc.line(margin, y-1, W-margin, y-1);
+          y += 2;
+        } else if(line.startsWith('### ')) {
+          addText(line.replace('### ',''), 11, [13,148,136], true);
+        } else if(line.startsWith('- ') || line.startsWith('* ')) {
+          addText('  • ' + line.substring(2), 9, [71,85,105], false);
+        } else if(line.startsWith('**') && line.endsWith('**')) {
+          addText(line.replace(/[*][*]/g,''), 10, [15,23,42], true);
+        } else {
+          addText(line.replace(/[*][*]/g,''), 9, [71,85,105], false);
+        }
+      });
+
+      y += 6;
+      // Findings
+      addText('Detailed Findings', 13, [13,148,136], true);
+      doc.line(margin, y-1, W-margin, y-1);
+      y += 4;
+
+      results.findings.forEach(f => {
+        if(y > 260) { doc.addPage(); y = 20; }
+        const sevCol = f.status==='PASS'?[34,197,94]:f.severity==='CRITICAL'?[220,38,38]:f.severity==='HIGH'?[249,115,22]:f.severity==='MEDIUM'?[245,158,11]:[100,116,139];
+        doc.setFillColor(248,250,252);
+        const fH = f.recommendation ? 22 : 16;
+        doc.roundedRect(margin, y, W - margin*2, fH, 2, 2, 'F');
+        doc.setFillColor(...sevCol);
+        doc.roundedRect(margin, y, 20, fH, 2, 2, 'F');
+        doc.setFontSize(8); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+        doc.text(f.status==='PASS'?'PASS':f.severity, margin+2, y+fH/2+1, {baseline:'middle'});
+        doc.setFontSize(9); doc.setTextColor(15,23,42); doc.setFont('helvetica','bold');
+        doc.text(f.check, margin+24, y+5);
+        doc.setFontSize(8); doc.setTextColor(100,116,139); doc.setFont('helvetica','normal');
+        doc.text(f.category, margin+24, y+10);
+        doc.text(doc.splitTextToSize(f.detail, W-margin*2-26)[0], margin+24, y+15);
+        if(f.recommendation) {
+          doc.setTextColor(13,148,136);
+          doc.text(doc.splitTextToSize('Rec: '+f.recommendation, W-margin*2-26)[0], margin+24, y+20);
+        }
+        y += fH + 3;
+      });
+
+      // Footer
+      const pages = doc.getNumberOfPages();
+      for(let i=1; i<=pages; i++) {
+        doc.setPage(i);
+        doc.setFillColor(15,23,42);
+        doc.rect(0, 287, W, 10, 'F');
+        doc.setFontSize(8); doc.setTextColor(148,163,184); doc.setFont('helvetica','normal');
+        doc.text('GSC WebLogic AI Platform  |  Security Assessment  |  Confidential', margin, 293);
+        doc.text('Page '+i+' of '+pages, W-margin, 293, {align:'right'});
+      }
+
+      doc.save('GSC_Security_Report_'+new Date().toISOString().split('T')[0]+'.pdf');
+    };
+    document.head.appendChild(script);
+  };
+  const riskColor=(level)=>({CRITICAL:C.danger,HIGH:"#F97316",MEDIUM:C.warning,LOW:C.green,INFO:C.blue,PASS:C.green}[level]||C.muted);
+  const categories=results?["ALL",...new Set(results.findings.map(f=>f.category))]:[];
+  const filtered=results?results.findings.filter(f=>activeCategory==="ALL"||f.category===activeCategory):[];
+
+  return <div style={{padding:"20px 24px"}}>
+    {/* Header */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+      <div>
+        <div style={{fontSize:22,fontWeight:700,color:C.text}}>Security Assessment</div>
+        <div style={{fontSize:13,color:C.muted,marginTop:4}}>WebLogic 14.1.1 Security Scanner — checks users, SSL, deployments, ports, audit logs</div>
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        {results&&<Btn color={C.blue} onClick={generateReport} loading={loadingReport} C={C}>Generate Compliance Report</Btn>}
+        {report&&<Btn color={C.success} onClick={downloadReport} C={C}>Download PDF Report</Btn>}
+        <Btn color={C.teal} onClick={runScan} loading={scanning} C={C}>{scanning?"Scanning...":"Run Security Scan"}</Btn>
+      </div>
+    </div>
+
+    {/* Empty state */}
+    {!results&&!scanning&&<div style={{textAlign:"center",padding:"60px 0",color:C.muted}}>
+      <div style={{fontSize:48,marginBottom:16}}>🔒</div>
+      <div style={{fontSize:18,fontWeight:600,color:C.text,marginBottom:8}}>No scan results yet</div>
+      <div style={{fontSize:13,marginBottom:24}}>Run a security scan to assess your WebLogic environment</div>
+      <Btn color={C.teal} onClick={runScan} C={C}>Run Security Scan</Btn>
+    </div>}
+
+    {/* Scanning state */}
+    {scanning&&<div style={{textAlign:"center",padding:"60px 0",color:C.muted}}>
+      <div style={{fontSize:18,color:C.teal,marginBottom:8}}>Scanning WebLogic environment...</div>
+      <div style={{fontSize:13}}>Checking users, SSL, deployments, ports, audit logs</div>
+    </div>}
+
+    {/* Results */}
+    {results&&<div>
+      {/* Risk Score Cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,marginBottom:20}}>
+        {[
+          {l:"Risk Level",v:results.riskLevel,c:riskColor(results.riskLevel)},
+          {l:"Risk Score",v:results.riskScore+"/100",c:results.riskScore>70?C.green:results.riskScore>40?C.warning:C.danger},
+          {l:"Critical",v:results.summary.critical,c:results.summary.critical>0?C.danger:C.success},
+          {l:"High",v:results.summary.high,c:results.summary.high>0?"#F97316":C.success},
+          {l:"Medium",v:results.summary.medium,c:results.summary.medium>0?C.warning:C.success},
+        ].map(s=><Card key={s.l} color={s.c} style={{padding:"12px 16px",textAlign:"center"}} C={C}>
+          <div style={{fontSize:22,fontWeight:700,color:s.c}}>{s.v}</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:4}}>{s.l}</div>
+        </Card>)}
+      </div>
+
+      {/* Category filter */}
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {categories.map(cat=><button key={cat} onClick={()=>setActiveCategory(cat)}
+          style={{padding:"5px 14px",borderRadius:20,border:"1px solid",fontSize:12,cursor:"pointer",
+            borderColor:activeCategory===cat?C.teal:C.border,
+            background:activeCategory===cat?C.teal:"transparent",
+            color:activeCategory===cat?C.white:C.muted}}>
+          {cat}
+        </button>)}
+      </div>
+
+      {/* Findings list */}
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:24}}>
+        {filtered.map((f,i)=><div key={i} style={{background:C.card2,border:"1px solid",
+          borderColor:f.status==="PASS"?C.border:riskColor(f.severity)+"44",
+          borderLeft:"4px solid "+riskColor(f.status==="PASS"?"PASS":f.severity),
+          borderRadius:8,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{background:riskColor(f.status==="PASS"?"PASS":f.severity)+"22",
+                color:riskColor(f.status==="PASS"?"PASS":f.severity),
+                padding:"2px 10px",borderRadius:12,fontSize:11,fontWeight:700}}>
+                {f.status==="PASS"?"PASS":f.severity}
+              </span>
+              <span style={{fontSize:11,color:C.muted}}>{f.category}</span>
+            </div>
+            <span style={{fontSize:11,color:C.muted}}>{f.status}</span>
+          </div>
+          <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:4}}>{f.check}</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:f.recommendation?6:0}}>{f.detail}</div>
+          {f.recommendation&&<div style={{fontSize:12,color:C.muted,marginTop:4}}>{f.recommendation}</div>}
+          {f.howToFix&&<div style={{marginTop:8,background:C.bg,borderRadius:6,padding:"8px 12px"}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.teal,marginBottom:4}}>HOW TO FIX:</div>
+            <div style={{fontSize:12,color:C.text,whiteSpace:"pre-line",fontFamily:"monospace"}}>{f.howToFix}</div>
+          </div>}
+          {f.verifyStep&&<div style={{marginTop:6,fontSize:11,color:C.success}}>VERIFY: {f.verifyStep}</div>}
+        </div>)}
+      </div>
+
+      {/* AI Report */}
+      {report&&<div style={{background:C.card2,border:"1px solid "+C.border,borderRadius:8,padding:20}}>
+        <div style={{fontSize:15,fontWeight:700,color:C.text,marginBottom:12}}>AI Security Assessment Report</div>
+        <div style={{fontSize:13,color:C.muted,whiteSpace:"pre-wrap",lineHeight:1.7}}>{report}</div>
+      </div>}
+    </div>}
+  </div>;
+}
+
+
+
+// ════════════════════════════════════════════════════════
+// OCI ADVISORY TAB
+// ════════════════════════════════════════════════════════
+function MythosTab({C,user,wlsApi,addToast,realMode}) {
+  const [scanning,setScanning]=useState(false);
+  const [results,setResults]=useState(null);
+  const [report,setReport]=useState('');
+  const [loadingReport,setLoadingReport]=useState(false);
+  const [activeVector,setActiveVector]=useState('ALL');
+
+  const runScan=async()=>{
+    if(!realMode) return addToast("Not connected","Connect to WebLogic first",C.warning,"");
+    setScanning(true); setResults(null); setReport('');
+    try {
+      const data=await wlsApi.post("/api/mythos/scan",{});
+      setResults(data);
+      addToast("Compliance Scan Complete","Resilience Score: "+data.resilience+"/100",
+        data.riskLevel==="CRITICAL"||data.riskLevel==="HIGH"?C.danger:C.success,"");
+    } catch(e) { addToast("Scan failed",e.message,C.danger,""); }
+    setScanning(false);
+  };
+
+  const generateReport=async()=>{
+    if(!results) return;
+    setLoadingReport(true);
+    try {
+      const data=await wlsApi.post("/api/mythos/report",{
+        findings:results.findings, summary:results.summary,
+        resilience:results.resilience, riskLevel:results.riskLevel,
+        remediations:results.remediations,
+      });
+      setReport(data.report);
+    } catch(e) { addToast("Report failed",e.message,C.danger,""); }
+    setLoadingReport(false);
+  };
+
+  const downloadPDF=()=>{
+    if(!report||!results) return;
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    script.onload=()=>{
+      const {jsPDF}=window.jspdf;
+      const doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+      const W=210, M=15;
+      let y=20;
+      const add=(txt,sz,col,bold,maxW)=>{
+        doc.setFontSize(sz); doc.setTextColor(...col);
+        doc.setFont('helvetica',bold?'bold':'normal');
+        const lines=doc.splitTextToSize(String(txt),maxW||W-M*2);
+        lines.forEach(l=>{ if(y>275){doc.addPage();y=20;} doc.text(l,M,y); y+=sz*0.45; }); y+=2;
+      };
+      // Header
+      doc.setFillColor(15,23,42); doc.rect(0,0,W,22,'F');
+      doc.setFillColor(220,38,38); doc.rect(0,0,6,22,'F');
+      doc.setFontSize(16); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+      doc.text('GSC Oracle Advisory Compliance Assessment Report',M,10);
+      doc.setFontSize(9); doc.setTextColor(148,163,184); doc.setFont('helvetica','normal');
+      doc.text('Oracle GSC  |  Oracle Advisory Compliance  |  '+new Date().toLocaleString()+'  |  Confidential',M,17);
+      y=30;
+      // Resilience score
+      const rCol=results.riskLevel==='CRITICAL'?[220,38,38]:results.riskLevel==='HIGH'?[249,115,22]:[34,197,94];
+      doc.setFillColor(...rCol); doc.roundedRect(M,y,60,18,3,3,'F');
+      doc.setFontSize(11); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+      doc.text('Resilience: '+results.resilience+'/100',M+4,y+7);
+      doc.text('Risk: '+results.riskLevel,M+4,y+14);
+      // Stats
+      [[results.summary.critical,'Critical',[220,38,38]],[results.summary.high,'High',[249,115,22]],[results.summary.medium,'Medium',[245,158,11]],[results.summary.passed,'Passed',[34,197,94]]].forEach((st,i)=>{
+        const sx=85+i*32;
+        doc.setFillColor(...st[2]); doc.roundedRect(sx,y,28,18,2,2,'F');
+        doc.setFontSize(14); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+        doc.text(String(st[0]),sx+14,y+10,{align:'center'});
+        doc.setFontSize(8); doc.text(st[1],sx+14,y+16,{align:'center'});
+      });
+      y+=26;
+      add('Advisory: Oracle Security Advisory May 2026 — Security Controls',9,[148,163,184],false);
+      y+=4;
+      // Report content
+      add('Security Assessment',13,[13,148,136],true);
+      doc.setDrawColor(13,148,136); doc.setLineWidth(0.5); doc.line(M,y-1,W-M,y-1); y+=3;
+      report.split('\n').forEach(line=>{
+        if(!line.trim()){y+=3;return;}
+        if(line.startsWith('## ')) { y+=2; add(line.replace('## ',''),12,[15,23,42],true); doc.line(M,y-1,W-M,y-1); y+=2; }
+        else if(line.startsWith('### ')) add(line.replace('### ',''),11,[13,148,136],true);
+        else if(line.startsWith('- ')) add('  - '+line.substring(2),9,[71,85,105],false);
+        else add(line.replace(/[*][*]/g,''),9,[71,85,105],false);
+      });
+      y+=6;
+      // Findings
+      add('Security Control Findings',13,[220,38,38],true);
+      doc.line(M,y-1,W-M,y-1); y+=4;
+      results.findings.filter(f=>f.status!=='PASS').forEach(f=>{
+        if(y>260){doc.addPage();y=20;}
+        const sc=f.severity==='CRITICAL'?[220,38,38]:f.severity==='HIGH'?[249,115,22]:f.severity==='MEDIUM'?[245,158,11]:[100,116,139];
+        doc.setFillColor(248,250,252); doc.roundedRect(M,y,W-M*2,f.remediation?24:16,2,2,'F');
+        doc.setFillColor(...sc); doc.roundedRect(M,y,22,f.remediation?24:16,2,2,'F');
+        doc.setFontSize(7); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+        doc.text(f.vector||'',M+1,y+(f.remediation?12:8),{baseline:'middle'});
+        doc.setFontSize(9); doc.setTextColor(15,23,42); doc.setFont('helvetica','bold');
+        doc.text(f.check,M+25,y+5);
+        doc.setFontSize(8); doc.setTextColor(100,116,139); doc.setFont('helvetica','normal');
+        const detLines=doc.splitTextToSize(f.detail,W-M*2-27);
+        const fixLines=f.remediation?doc.splitTextToSize('Fix: '+f.remediation,W-M*2-27):[];
+        const totalLines=detLines.length+fixLines.length;
+        const fHH=8+totalLines*4+8;
+        doc.setFillColor(248,250,252); doc.roundedRect(M,y,W-M*2,fHH,2,2,'F');
+        doc.setFillColor(...sc); doc.roundedRect(M,y,22,fHH,2,2,'F');
+        doc.setFontSize(7); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+        doc.text(f.vector||'',M+1,y+fHH/2,{baseline:'middle'});
+        doc.setFontSize(9); doc.setTextColor(15,23,42); doc.setFont('helvetica','bold');
+        doc.text(f.check,M+25,y+5);
+        doc.setFontSize(8); doc.setTextColor(100,116,139); doc.setFont('helvetica','normal');
+        let ly=y+11;
+        detLines.forEach(l=>{doc.text(l,M+25,ly);ly+=4;});
+        if(fixLines.length>0){
+          doc.setTextColor(13,148,136);
+          fixLines.forEach(l=>{doc.text(l,M+25,ly);ly+=4;});
+        }
+        y+=fHH+3;
+      });
+      // Footer
+      const pages=doc.getNumberOfPages();
+      for(let i=1;i<=pages;i++){
+        doc.setPage(i); doc.setFillColor(15,23,42); doc.rect(0,287,W,10,'F');
+        doc.setFontSize(8); doc.setTextColor(148,163,184); doc.setFont('helvetica','normal');
+        doc.text('GSC WebLogic AI Platform  |  Oracle Advisory Compliance Report  |  Confidential',M,293);
+        doc.text('Page '+i+' of '+pages,W-M,293,{align:'right'});
+      }
+      doc.save('GSC_OCI_Advisory_Compliance_'+new Date().toISOString().split('T')[0]+'.pdf');
+    };
+    document.head.appendChild(script);
+  };
+
+  const sevColor=(sev,status)=>{
+    if(status==='PASS') return C.green;
+    return {CRITICAL:C.danger,HIGH:"#F97316",MEDIUM:C.warning,LOW:C.blue,INFO:C.muted}[sev]||C.muted;
+  };
+
+  const vectors=results?["ALL",...new Set(results.findings.map(f=>f.vector))]:[];
+  const filtered=results?results.findings.filter(f=>activeVector==="ALL"||f.vector===activeVector):[];
+
+  return <div style={{padding:"20px 24px"}}>
+    {/* Header */}
+    <div style={{background:"linear-gradient(135deg, #1E0A0A 0%, #2D0808 100%)",border:"1px solid #7F1D1D",borderRadius:12,padding:"20px 24px",marginBottom:20}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between"}}>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+            <div style={{background:C.danger,borderRadius:6,padding:"4px 12px"}}>
+              <span style={{fontSize:11,fontWeight:700,color:C.white,letterSpacing:1}}>OCI ADVISORY</span>
+            </div>
+            <span style={{fontSize:11,color:"#FCA5A5"}}>Oracle Security Advisory — May 2026</span>
+          </div>
+          <div style={{fontSize:20,fontWeight:700,color:C.white,marginBottom:6}}>Oracle Advisory Compliance Assessment</div>
+          <div style={{fontSize:12,color:"#FCA5A5",maxWidth:600}}>
+            Evaluates your WebLogic environment against 8 Oracle advisory security controls.
+            AI-enabled threats can autonomously discover and chain vulnerabilities at machine speed.
+            This scanner identifies your exposure and generates a prioritised remediation plan.
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,minWidth:200}}>
+          <Btn color={C.danger} onClick={runScan} loading={scanning} C={C}>
+            {scanning?"Scanning...":"Run Oracle Advisory Compliance Scan"}
+          </Btn>
+          {results&&<Btn color={C.blue} onClick={generateReport} loading={loadingReport} C={C}>Generate Compliance Report</Btn>}
+          {report&&<Btn color={C.success} onClick={downloadPDF} C={C}>Download PDF</Btn>}
+        </div>
+      </div>
+    </div>
+
+    {/* Attack vectors legend */}
+    {!results&&!scanning&&<div>
+      <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:12}}>Oracle Advisory Security Controls</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:24}}>
+        {[
+          {id:"Console Security",name:"Admin Console",icon:"🎯"},
+          {id:"Patch Compliance",name:"Patch Compliance",icon:"🔧"},
+          {id:"Authentication",name:"Authentication",icon:"🔐"},
+          {id:"Privilege Risk",name:"Privilege Escalation",icon:"⬆️"},
+          {id:"App Security",name:"Deployment Security",icon:"📦"},
+          {id:"Network Audit",name:"Network Recon",icon:"🌐"},
+          {id:"Audit Logs",name:"Audit Trail",icon:"📋"},
+          {id:"SSL Security",name:"SSL/TLS",icon:"🔒"},
+        ].map(v=><div key={v.id} style={{background:C.card2,border:"1px solid "+C.border,borderRadius:8,padding:"12px 14px"}}>
+          <div style={{fontSize:11,color:C.danger,fontWeight:700,marginBottom:4}}>{v.id}</div>
+          <div style={{fontSize:13,fontWeight:600,color:C.text}}>{v.name}</div>
+        </div>)}
+      </div>
+      <div style={{textAlign:"center",padding:"20px 0"}}>
+        <Btn color={C.danger} onClick={runScan} C={C}>Run Oracle Advisory Compliance Scan</Btn>
+      </div>
+    </div>}
+
+    {scanning&&<div style={{textAlign:"center",padding:"60px 0"}}>
+      <div style={{fontSize:18,color:C.danger,marginBottom:8}}>Running Oracle Advisory compliance scan...</div>
+      <div style={{fontSize:13,color:C.muted}}>Checking 8 security controls: console exposure, patch compliance, authentication, privilege escalation, deployments, network, audit logs, SSL</div>
+    </div>}
+
+    {results&&<div>
+      {/* Score cards */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,marginBottom:20}}>
+        {[
+          {l:"Resilience Score",v:results.resilience+"/100",c:results.resilience>70?C.green:results.resilience>40?C.warning:C.danger},
+          {l:"Risk Level",v:results.riskLevel,c:results.riskLevel==="CRITICAL"||results.riskLevel==="HIGH"?C.danger:C.warning},
+          {l:"Critical",v:results.summary.critical,c:results.summary.critical>0?C.danger:C.success},
+          {l:"High",v:results.summary.high,c:results.summary.high>0?"#F97316":C.success},
+          {l:"Medium",v:results.summary.medium,c:results.summary.medium>0?C.warning:C.success},
+          {l:"Passed",v:results.summary.passed,c:C.success},
+        ].map(s=><Card key={s.l} color={s.c} style={{padding:"10px 14px",textAlign:"center"}} C={C}>
+          <div style={{fontSize:20,fontWeight:700,color:s.c}}>{s.v}</div>
+          <div style={{fontSize:10,color:C.muted,marginTop:3}}>{s.l}</div>
+        </Card>)}
+      </div>
+
+      {/* Prioritised remediations */}
+      {results.remediations?.length>0&&<div style={{background:C.card2,border:"1px solid #7F1D1D",borderRadius:8,padding:16,marginBottom:20}}>
+        <div style={{fontSize:14,fontWeight:700,color:C.danger,marginBottom:12}}>Priority Remediation Plan</div>
+        {results.remediations.slice(0,5).map((r,i)=><div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:10,paddingBottom:10,borderBottom:i<4?"1px solid "+C.border:"none"}}>
+          <div style={{minWidth:24,height:24,borderRadius:"50%",background:C.danger,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:C.white,flexShrink:0}}>{i+1}</div>
+          <div>
+            <div style={{fontSize:12,fontWeight:600,color:C.text}}>{r.check}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>{r.remediation}</div>
+          </div>
+          <div style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:sevColor(r.severity,'FAIL'),background:sevColor(r.severity,'FAIL')+"22",padding:"2px 8px",borderRadius:10,whiteSpace:"nowrap",flexShrink:0}}>{r.severity}</div>
+        </div>)}
+      </div>}
+
+      {/* Vector filter */}
+      <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+        {vectors.map(v=><button key={v} onClick={()=>setActiveVector(v)}
+          style={{padding:"4px 12px",borderRadius:16,border:"1px solid",fontSize:11,cursor:"pointer",
+            borderColor:activeVector===v?C.danger:C.border,
+            background:activeVector===v?C.danger:"transparent",
+            color:activeVector===v?C.white:C.muted}}>
+          {v}
+        </button>)}
+      </div>
+
+      {/* Findings */}
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:24}}>
+        {filtered.map((f,i)=><div key={i} style={{background:C.card2,
+          border:"1px solid "+(f.status==="PASS"?C.border:sevColor(f.severity,f.status)+"44"),
+          borderLeft:"4px solid "+sevColor(f.severity,f.status),
+          borderRadius:8,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+            <span style={{background:sevColor(f.severity,f.status)+"22",color:sevColor(f.severity,f.status),
+              padding:"2px 10px",borderRadius:12,fontSize:10,fontWeight:700}}>
+              {f.status==="PASS"?"PASS":f.severity}
+            </span>
+            <span style={{fontSize:10,color:C.danger,fontWeight:600}}>{f.vector}</span>
+            <span style={{fontSize:10,color:C.muted}}>{f.status}</span>
+          </div>
+          <div style={{fontSize:13,fontWeight:600,color:C.text,marginBottom:4}}>{f.check}</div>
+          <div style={{fontSize:12,color:C.muted,marginBottom:f.remediation?6:0}}>{f.detail}</div>
+          {f.remediation&&<div style={{fontSize:12,color:C.teal}}>Recommended Fix: {f.remediation}</div>}
+        </div>)}
+      </div>
+
+      {/* AI Report */}
+      {report&&<div style={{background:C.card2,border:"1px solid "+C.border,borderRadius:8,padding:20}}>
+        <div style={{fontSize:15,fontWeight:700,color:C.danger,marginBottom:12}}>AI Oracle Advisory Compliance Report</div>
+        <div style={{fontSize:13,color:C.muted,whiteSpace:"pre-wrap",lineHeight:1.7}}>{report}</div>
+      </div>}
+    </div>}
+  </div>;
+}
+
+
 function ApprovalsTab({C,approvalList,user,record,addToast,realMode,loadRealServers}) {
   const [localTerm,setLocalTerm]=useState(["[INFO] Approval console ready..."]);
   const canApprove=user.role==="manager"||user.role==="approver";
